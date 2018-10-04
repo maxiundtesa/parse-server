@@ -212,12 +212,17 @@ export class PublicAPIRouter extends PromiseRouter {
 
   invalidLink(req) {
     var config = null;
+    console.log("PublicApiRouter.js L. 215");
+    console.log(`req: ${req}`);
     if(req === undefined) {
     const appId = process.env.APP_ID || 'TicketFuchs';
+    console.log(`AppID: ${appId}`);
     config = Config.get(appId);
+    console.log(`config: ${config}`);
     }
     else {
       config = req.config;
+      console.log(`config: ${config}`);
     }
     return Promise.resolve({
       status: 302,
@@ -227,11 +232,15 @@ export class PublicAPIRouter extends PromiseRouter {
 
   invalidVerificationLink(req) {
     var config = req.config;
+    console.log("PublicApiRouter.js L. 235");
+    console.log(`req: ${req}`);
     if(config === undefined) {
       const appId = process.env.APP_ID || 'TicketFuchs';
+      console.log(`AppID: ${appId}`);
       config = Config.get(appId);
+      console.log(`config: ${config}`);
       }
-
+      console.log(`config: ${config}`);
     if (req.query.username) {
       const params = qs.stringify({
         username: req.query.username,
@@ -241,6 +250,7 @@ export class PublicAPIRouter extends PromiseRouter {
         location: `${config.invalidVerificationLinkURL}?${params}`,
       });
     } else {
+      console.log("PublicApiRouter.js L. 253");
       return this.invalidLink(req);
     }
   }
