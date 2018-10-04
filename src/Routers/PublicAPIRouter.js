@@ -149,9 +149,8 @@ export class PublicAPIRouter extends PromiseRouter {
       () => {
         const params = qs.stringify({
           token,
-          id: config.applicationId,
+          mail: mail,
           username,
-          app: config.appName,
         });
         return Promise.resolve({
           status: 302,
@@ -178,9 +177,10 @@ export class PublicAPIRouter extends PromiseRouter {
       return this.missingPublicServerURL();
     }
 
-    const { username, token, new_password } = req.body;
+    const { username, token, new_password, mail } = req.body;
 
-    if (!username || !token || !new_password) {
+    if (!username || !token || !new_password || !mail) {
+      console.log("PublicApiRouter.js L. 185");
       return this.invalidLink(req);
     }
 
@@ -201,7 +201,6 @@ export class PublicAPIRouter extends PromiseRouter {
             id: config.applicationId,
             error: err,
             mail: mail,
-            app: config.appName,
           });
           return Promise.resolve({
             status: 302,
