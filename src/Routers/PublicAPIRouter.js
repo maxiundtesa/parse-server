@@ -86,8 +86,10 @@ export class PublicAPIRouter extends PromiseRouter {
   }
 
   changePassword(req) {
+
     return new Promise((resolve, reject) => {
-      const config = Config.get(req.query.id);
+      const appId = process.env.APP_ID || 'TicketFuchs';
+      const config = Config.get(appId);
 
       if (!config) {
         console.log("PublicApiRouter.js L. 95");
@@ -209,14 +211,27 @@ export class PublicAPIRouter extends PromiseRouter {
   }
 
   invalidLink(req) {
+    var config = null;
+    if(req === undefined) {
+    const appId = process.env.APP_ID || 'TicketFuchs';
+    config = Config.get(appId);
+    }
+    else {
+      config = req.config;
+    }
     return Promise.resolve({
       status: 302,
-      location: req.config.invalidLinkURL,
+      location: config.invalidLinkURL,
     });
   }
 
   invalidVerificationLink(req) {
-    const config = req.config;
+    var config = req.config;
+    if(config === undefined) {
+      const appId = process.env.APP_ID || 'TicketFuchs';
+      config = Config.get(appId);
+      }
+
     if (req.query.username) {
       const params = qs.stringify({
         username: req.query.username,
@@ -245,7 +260,8 @@ export class PublicAPIRouter extends PromiseRouter {
   }
 
   setConfig(req) {
-    req.config = Config.get(req.params.appId);
+    const appId = process.env.APP_ID || 'TicketFuchs';
+    req.config = Config.get(appId);
     return Promise.resolve();
   }
 
