@@ -123,7 +123,10 @@ export class PublicAPIRouter extends PromiseRouter {
   }
 
   requestResetPassword(req) {
-    const config = req.config;
+    const appId = process.env.APP_ID || 'TicketFuchs';
+    console.log(`AppID: ${appId}`);
+    const config = Config.get(appId);
+
 
     if (!config) {
       console.log("PublicApiRouter.js L. 120");
@@ -162,7 +165,9 @@ export class PublicAPIRouter extends PromiseRouter {
   }
 
   resetPassword(req) {
-    const config = req.config;
+    const appId = process.env.APP_ID || 'TicketFuchs';
+    console.log(`AppID: ${appId}`);
+    const config = Config.get(appId);
 
     if (!config) {
       console.log("PublicApiRouter.js L. 157");
