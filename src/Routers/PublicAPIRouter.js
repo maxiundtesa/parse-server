@@ -16,6 +16,7 @@ export class PublicAPIRouter extends PromiseRouter {
     const config = Config.get(appId);
 
     if (!config) {
+      console.log("PublicApiRouter.js L. 18");
       this.invalidRequest();
     }
 
@@ -48,6 +49,7 @@ export class PublicAPIRouter extends PromiseRouter {
     const config = Config.get(appId);
 
     if (!config) {
+      console.log("PublicApiRouter.js L. 51");
       this.invalidRequest();
     }
 
@@ -82,6 +84,7 @@ export class PublicAPIRouter extends PromiseRouter {
       const config = Config.get(req.query.id);
 
       if (!config) {
+        console.log("PublicApiRouter.js L. 86");
         this.invalidRequest();
       }
 
@@ -115,6 +118,7 @@ export class PublicAPIRouter extends PromiseRouter {
     const config = req.config;
 
     if (!config) {
+      console.log("PublicApiRouter.js L. 120");
       this.invalidRequest();
     }
 
@@ -151,6 +155,7 @@ export class PublicAPIRouter extends PromiseRouter {
     const config = req.config;
 
     if (!config) {
+      console.log("PublicApiRouter.js L. 157");
       this.invalidRequest();
     }
 

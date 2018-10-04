@@ -94,6 +94,7 @@ export function handleParseHeaders(req, res, next) {
         delete req.body._ContentType;
       }
     } else {
+      console.log("middlewares.js L. 97");
       return invalidRequest(req, res);
     }
   }
@@ -122,6 +123,7 @@ export function handleParseHeaders(req, res, next) {
     req.config.masterKeyIps.length !== 0 &&
     req.config.masterKeyIps.indexOf(clientIp) === -1
   ) {
+    console.log("middlewares.js L. 126");
     return invalidRequest(req, res);
   }
 
@@ -164,6 +166,7 @@ export function handleParseHeaders(req, res, next) {
   });
 
   if (oneKeyConfigured && !oneKeyMatches) {
+    console.log("middlewares.js L. 169");
     return invalidRequest(req, res);
   }
 
