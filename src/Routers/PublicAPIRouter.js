@@ -47,7 +47,11 @@ export class PublicAPIRouter extends PromiseRouter {
 
   resendVerificationEmail(req) {
     const username = req.body.username;
-    const appId = req.params.appId;
+    const mail = req.body.mail;
+    const appId = process.env.APP_ID || 'TicketFuchs';
+    console.log(`AppID: ${appId}`);
+
+
     const config = Config.get(appId);
 
     if (!config) {
@@ -59,7 +63,9 @@ export class PublicAPIRouter extends PromiseRouter {
       return this.missingPublicServerURL();
     }
 
-    if (!username) {
+    if (!username|| !mail) {
+      console.log(`Mailadresse: ${mail}`);
+      console.log("PublicApiRouter.js L. 68");
       return this.invalidLink(req);
     }
 
@@ -86,7 +92,7 @@ export class PublicAPIRouter extends PromiseRouter {
       const config = Config.get(req.query.id);
 
       if (!config) {
-        console.log("PublicApiRouter.js L. 86");
+        console.log("PublicApiRouter.js L. 95");
         this.invalidRequest();
       }
 
@@ -128,9 +134,11 @@ export class PublicAPIRouter extends PromiseRouter {
       return this.missingPublicServerURL();
     }
 
-    const { username, token } = req.query;
+    const { username, token, mail } = req.query;
 
-    if (!username || !token) {
+    if (!username || !token || !mail) {
+      console.log(`Mailadresse: ${mail}`);
+      console.log("PublicApiRouter.js L. 28");
       return this.invalidLink(req);
     }
 
@@ -175,7 +183,7 @@ export class PublicAPIRouter extends PromiseRouter {
       .updatePassword(username, token, new_password)
       .then(
         () => {
-          const params = qs.stringify({ username: username });
+          const params = qs.stringify({ mail: mail });
           return Promise.resolve({
             status: 302,
             location: `${config.passwordResetSuccessURL}?${params}`,
@@ -187,6 +195,7 @@ export class PublicAPIRouter extends PromiseRouter {
             token: token,
             id: config.applicationId,
             error: err,
+            mail: mail,
             app: config.appName,
           });
           return Promise.resolve({
