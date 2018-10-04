@@ -11,7 +11,7 @@ Parse Server is an [open source version of the Parse backend](http://blog.parsep
 
 Parse Server works with the Express web application framework. It can be added to existing web applications, or run by itself.
 
-// CHANGED URLS IN CONFIG.JS
+// CHANGED URLS IN CONFIG.JS, added mail in PublicAPIRouter.js and UserController.js
 
 
 
