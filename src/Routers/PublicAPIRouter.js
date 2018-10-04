@@ -47,7 +47,6 @@ export class PublicAPIRouter extends PromiseRouter {
 
   resendVerificationEmail(req) {
     const username = req.body.username;
-    const mail = req.body.mail;
     const appId = process.env.APP_ID || 'TicketFuchs';
     console.log(`AppID: ${appId}`);
 
@@ -63,8 +62,7 @@ export class PublicAPIRouter extends PromiseRouter {
       return this.missingPublicServerURL();
     }
 
-    if (!username|| !mail) {
-      console.log(`Mailadresse: ${mail}`);
+    if (!username) {
       console.log("PublicApiRouter.js L. 68");
       return this.invalidLink(req);
     }
@@ -219,10 +217,9 @@ export class PublicAPIRouter extends PromiseRouter {
 
   invalidVerificationLink(req) {
     const config = req.config;
-    if (req.query.username && req.params.appId) {
+    if (req.query.username) {
       const params = qs.stringify({
         username: req.query.username,
-        appId: req.params.appId,
       });
       return Promise.resolve({
         status: 302,
