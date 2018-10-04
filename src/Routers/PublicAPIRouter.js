@@ -150,6 +150,7 @@ export class PublicAPIRouter extends PromiseRouter {
       () => {
         const params = qs.stringify({
           token,
+          mail: mail,
           id: config.applicationId,
           username,
           app: config.appName,
@@ -182,6 +183,7 @@ export class PublicAPIRouter extends PromiseRouter {
     const { username, token, new_password, mail } = req.body;
 
     if ((!username || !token || !new_password || !mail) && req.xhr === false) {
+      console.log("PublicApiRouter.js L. 185");
       return this.invalidLink(req);
     }
 
