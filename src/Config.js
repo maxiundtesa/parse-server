@@ -327,9 +327,7 @@ export class Config {
   }
 
   get requestResetPasswordURL() {
-    return `${this.publicServerURL}/apps/${
-      this.applicationId
-    }/request_password_reset`;
+    return `${this.publicServerURL}/request_password_reset`;
   }
 
   get passwordResetSuccessURL() {
@@ -344,7 +342,7 @@ export class Config {
   }
 
   get verifyEmailURL() {
-    return `${this.publicServerURL}/apps/${this.applicationId}/verify_email`;
+    return `${this.publicServerURL}/verify_email`;
   }
 }
 
