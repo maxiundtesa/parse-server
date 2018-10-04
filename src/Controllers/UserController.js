@@ -221,10 +221,12 @@ export class UserController extends AdaptableController {
     return this.setPasswordResetToken(email).then(user => {
       const token = encodeURIComponent(user._perishable_token);
       const username = encodeURIComponent(user.username);
+      const mail = encodeURIComponent(user.email);
 
       const link = buildEmailLink(
         this.config.requestResetPasswordURL,
         username,
+        mail,
         token,
         this.config
       );

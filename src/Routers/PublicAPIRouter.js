@@ -48,7 +48,11 @@ export class PublicAPIRouter extends PromiseRouter {
 
   resendVerificationEmail(req) {
     const username = req.body.username;
-    const appId = req.params.appId;
+    const mail = req.body.mail;
+    const appId = process.env.APP_ID || 'TicketFuchs';
+    console.log(`AppID: ${appId}`);
+
+
     const config = Config.get(appId);
 
     if (!config) {
@@ -60,7 +64,9 @@ export class PublicAPIRouter extends PromiseRouter {
       return this.missingPublicServerURL();
     }
 
-    if (!username) {
+    if (!username|| !mail) {
+      console.log(`Mailadresse: ${mail}`);
+      console.log("PublicApiRouter.js L. 68");
       return this.invalidLink(req);
     }
 
@@ -87,7 +93,7 @@ export class PublicAPIRouter extends PromiseRouter {
       const config = Config.get(req.query.id);
 
       if (!config) {
-        console.log("PublicApiRouter.js L. 86");
+        console.log("PublicApiRouter.js L. 95");
         this.invalidRequest();
       }
 
@@ -129,9 +135,11 @@ export class PublicAPIRouter extends PromiseRouter {
       return this.missingPublicServerURL();
     }
 
-    const { username, token } = req.query;
+    const { username, token, mail } = req.query;
 
-    if (!username || !token) {
+    if (!username || !token || !mail) {
+      console.log(`Mailadresse: ${mail}`);
+      console.log("PublicApiRouter.js L. 28");
       return this.invalidLink(req);
     }
 
@@ -166,9 +174,9 @@ export class PublicAPIRouter extends PromiseRouter {
       return this.missingPublicServerURL();
     }
 
-    const { username, token, new_password } = req.body;
+    const { username, token, new_password, mail } = req.body;
 
-    if ((!username || !token || !new_password) && req.xhr === false) {
+    if ((!username || !token || !new_password || !mail) && req.xhr === false) {
       return this.invalidLink(req);
     }
 
@@ -182,6 +190,10 @@ export class PublicAPIRouter extends PromiseRouter {
 
     if (!new_password) {
       throw new Parse.Error(Parse.Error.PASSWORD_MISSING, 'Missing password');
+    }
+
+    if (!mail) {
+      throw new Parse.Error(Parse.Error.EMAIL_MISSING, 'Missing Mail');
     }
 
     return config.userController
@@ -206,6 +218,7 @@ export class PublicAPIRouter extends PromiseRouter {
           id: config.applicationId,
           error: result.err,
           app: config.appName,
+          mail: mail,
         });
 
         if (req.xhr) {
@@ -224,7 +237,7 @@ export class PublicAPIRouter extends PromiseRouter {
           status: 302,
           location: `${
             result.success
-              ? `${config.passwordResetSuccessURL}?username=${username}`
+              ? `${config.passwordResetSuccessURL}?mail=${mail}`
               : `${config.choosePasswordURL}?${params}`
           }`,
         });
