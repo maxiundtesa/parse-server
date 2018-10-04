@@ -234,7 +234,7 @@ export class PublicAPIRouter extends PromiseRouter {
   mountRoutes() {
     this.route(
       'GET',
-      '/apps/:appId/verify_email',
+      '/verify_email',
       req => {
         this.setConfig(req);
       },
@@ -245,7 +245,7 @@ export class PublicAPIRouter extends PromiseRouter {
 
     this.route(
       'POST',
-      '/apps/:appId/resend_verification_email',
+      '/resend_verification_email',
       req => {
         this.setConfig(req);
       },
@@ -254,13 +254,13 @@ export class PublicAPIRouter extends PromiseRouter {
       }
     );
 
-    this.route('GET', '/apps/choose_password', req => {
+    this.route('GET', '/choose_password', req => {
       return this.changePassword(req);
     });
 
     this.route(
       'POST',
-      '/apps/:appId/request_password_reset',
+      '/request_password_reset',
       req => {
         this.setConfig(req);
       },
@@ -271,7 +271,7 @@ export class PublicAPIRouter extends PromiseRouter {
 
     this.route(
       'GET',
-      '/apps/:appId/request_password_reset',
+      '/request_password_reset',
       req => {
         this.setConfig(req);
       },
