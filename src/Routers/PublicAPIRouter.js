@@ -11,8 +11,9 @@ const views = path.resolve(__dirname, '../../views');
 
 export class PublicAPIRouter extends PromiseRouter {
   verifyEmail(req) {
-    const { token, username } = req.query;
-    const appId = req.params.appId;
+    const { token, username, mail } = req.query;
+    const appId = process.env.APP_ID || 'TicketFuchs';
+    console.log(`AppID: ${appId}`);
     const config = Config.get(appId);
 
     if (!config) {
@@ -24,14 +25,16 @@ export class PublicAPIRouter extends PromiseRouter {
       return this.missingPublicServerURL();
     }
 
-    if (!token || !username) {
+    if (!token || !username|| !mail) {
+      console.log(`Mailadresse: ${mail}`);
+      console.log("PublicApiRouter.js L. 28");
       return this.invalidLink(req);
     }
 
     const userController = config.userController;
     return userController.verifyEmail(username, token).then(
       () => {
-        const params = qs.stringify({ username });
+        const params = qs.stringify({ mail });
         return Promise.resolve({
           status: 302,
           location: `${config.verifyEmailSuccessURL}?${params}`,
