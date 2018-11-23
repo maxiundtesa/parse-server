@@ -13,6 +13,8 @@ Parse Server works with the Express web application framework. It can be added t
 
 // CHANGED URLS IN CONFIG.JS, added mail in PublicAPIRouter.js and UserController.js
 
+// WICHTIG: LIB WIRD NUR FÜR ELASTIC BEANSTALK BENÖTIGT, MUSS BEI JEDER ÄNDERUNG MIT NPM INSTALL NEU GEBUILDET WERDEN!!!
+
 
 
 - [Getting Started](#getting-started)
