@@ -368,5 +368,5 @@ export function promiseEnforceMasterKeyAccess(request) {
 
 function invalidRequest(req, res) {
   res.status(403);
-  res.end('{"error":"unauthorized"}');
+  res.end('{"error":"not authorized"}');
 }
