@@ -65,6 +65,8 @@ class ParseServer {
     Parse.initialize(appId, javascriptKey || 'unused', masterKey);
     Parse.serverURL = serverURL;
 
+    console.trace("javscriptKey: " + javascriptKey);
+    console.trace("ServerURL: " + serverURL);
     const allControllers = controllers.getControllers(options);
 
     const {
@@ -326,6 +328,10 @@ class ParseServer {
             (json && json.status !== 'ok')
           ) {
             /* eslint-disable no-console */
+
+            console.trace("Errorcode: " + response + ", " + json);
+            console.trace("URL: " + Parse.serverURL.replace(/\/$/, '') + '/health');
+
             console.warn(
               `\nWARNING, Unable to connect to '${Parse.serverURL}'.` +
                 ` Cloud code and push notifications may be unavailable!\n`
