@@ -46,7 +46,8 @@ export class PublicAPIRouter extends PromiseRouter {
   }
 
   resendVerificationEmail(req) {
-    const username = req.query.username;
+    console.log("Request" + JSON.stringify(req));
+    const username = req.body.username;
     const appId = process.env.APP_ID || 'TicketFuchs';
     console.log(`AppID: ${appId}`);
 
