@@ -46,7 +46,7 @@ export class PublicAPIRouter extends PromiseRouter {
   }
 
   resendVerificationEmail(req) {
-    const username = req.body.username;
+    const username = req.query.username;
     const appId = process.env.APP_ID || 'TicketFuchs';
     console.log(`AppID: ${appId}`);
 
@@ -63,6 +63,7 @@ export class PublicAPIRouter extends PromiseRouter {
     }
 
     if (!username) {
+      console.log("Username:" + username);
       console.log("PublicApiRouter.js L. 68");
       return this.invalidLink(req);
     }
