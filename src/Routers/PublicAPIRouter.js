@@ -168,8 +168,28 @@ export class PublicAPIRouter extends PromiseRouter {
     );
   }
 
+
+
+  getCircularReplacer = () => {
+    const seen = new WeakSet;
+    return (key, value) => {
+      if (typeof value === "object" && value !== null) {
+        if (seen.has(value)) {
+          return;
+        }
+        seen.add(value);
+      }
+      return value;
+    };
+  };
+
+
+
   resetPassword(req) {
     const appId = process.env.APP_ID || 'TicketFuchs';
+
+
+    console.log(JSON.stringify(req, getCircularReplacer())); 
     console.log(`AppID: ${appId}`);
     const config = Config.get(appId);
 
