@@ -170,7 +170,7 @@ export class PublicAPIRouter extends PromiseRouter {
     const appId = process.env.APP_ID || 'TicketFuchs';
 
 
-    console.log(JSON.stringify(obj, function(key, val) {
+    console.log(JSON.stringify(req, function(key, val) {
       if (val != null && typeof val == "object") {
            if (seen.indexOf(val) >= 0) {
                return;
@@ -179,7 +179,7 @@ export class PublicAPIRouter extends PromiseRouter {
        }
        return val;
    }));
-    
+
     console.log(`AppID: ${appId}`);
     const config = Config.get(appId);
 
