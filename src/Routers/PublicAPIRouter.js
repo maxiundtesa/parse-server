@@ -171,18 +171,6 @@ export class PublicAPIRouter extends PromiseRouter {
 
   resetPassword(req) {
     const appId = process.env.APP_ID || 'TicketFuchs';
-    var seen = [];
-
-    console.log(JSON.stringify(req, function(key, val) {
-      if (val != null && typeof val == "object") {
-           if (seen.indexOf(val) >= 0) {
-               return;
-           }
-           seen.push(val);
-       }
-       return val;
-   }));
-
     console.log(`AppID: ${appId}`);
     const config = Config.get(appId);
 
@@ -326,6 +314,20 @@ export class PublicAPIRouter extends PromiseRouter {
   }
 
   setConfig(req) {
+
+    var seen = [];
+    console.log(JSON.stringify(req, function(key, val) {
+      if (val != null && typeof val == "object") {
+           if (seen.indexOf(val) >= 0) {
+               return;
+           }
+           seen.push(val);
+       }
+       return val;
+   }));
+
+
+
     const appId = process.env.APP_ID || 'TicketFuchs';
     req.config = Config.get(appId);
     return Promise.resolve();
