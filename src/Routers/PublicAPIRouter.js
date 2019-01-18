@@ -168,7 +168,7 @@ export class PublicAPIRouter extends PromiseRouter {
 
   resetPassword(req) {
     const appId = process.env.APP_ID || 'TicketFuchs';
-
+    var seen = [];
 
     console.log(JSON.stringify(req, function(key, val) {
       if (val != null && typeof val == "object") {
