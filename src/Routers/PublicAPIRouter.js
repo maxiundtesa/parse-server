@@ -73,9 +73,10 @@ export class PublicAPIRouter extends PromiseRouter {
 
     return userController.resendVerificationEmail(username).then(
       () => {
+        const params = qs.stringify({ mail });
         return Promise.resolve({
           status: 302,
-          location: `${config.linkSendSuccessURL}`,
+          location: `${config.linkSendSuccessURL}?${params}`,
         });
       },
       () => {
