@@ -90,7 +90,7 @@ export class UserController extends AdaptableController {
       )
       .then(results => {
         if (results.length != 1) {
-          throw undefined;
+          throw 'nothing found for this token and username';
         }
 
         if (
