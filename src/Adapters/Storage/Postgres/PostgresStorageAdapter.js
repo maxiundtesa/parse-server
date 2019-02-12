@@ -709,6 +709,7 @@ const buildWhereClause = ({ schema, query, index }): WhereClause => {
     }
 
     if (fieldValue.$regex) {
+      console.trace('FieldValue is Regex');
       let regex = fieldValue.$regex;
       let operator = '~';
       const opts = fieldValue.$options;
@@ -726,6 +727,9 @@ const buildWhereClause = ({ schema, query, index }): WhereClause => {
 
       patterns.push(`$${index}:raw ${operator} '$${index + 1}:raw'`);
       values.push(name, regex);
+
+      console.trace('VALUES: ' + JSON.stringify(values);
+      console.trace('PATERNS: ' + JSON.stringify(patterns);
       index += 2;
     }
 
