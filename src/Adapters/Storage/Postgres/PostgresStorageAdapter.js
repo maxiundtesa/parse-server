@@ -2386,13 +2386,16 @@ function removeWhiteSpace(regex) {
 
 function processRegexPattern(s) {
   if (s && s.startsWith('^')) {
+    console.trace("Starts with");
     // regex for startsWith
     return '^' + literalizeRegexPart(s.slice(1));
   } else if (s && s.endsWith('$')) {
     // regex for endsWith
+    console.trace("Ends with");
     return literalizeRegexPart(s.slice(0, s.length - 1)) + '$';
   }
 
+  console.trace("Hat Contains");
   // regex for contains
   return literalizeRegexPart(s);
 }
@@ -2446,13 +2449,15 @@ function createLiteralRegex(remaining) {
 }
 
 function literalizeRegexPart(s: string) {
+
+  console.trace("Parameter: " + JSON.stringify(s));
   const matcher1 = /\\Q((?!\\E).*)\\E$/;
   const result1: any = s.match(matcher1);
   if (result1 && result1.length > 1 && result1.index > -1) {
     // process regex that has a beginning and an end specified for the literal text
     const prefix = s.substr(0, result1.index);
     const remaining = result1[1];
-
+    console.trace("Springt hier raus");
     return literalizeRegexPart(prefix) + createLiteralRegex(remaining);
   }
 
@@ -2462,11 +2467,12 @@ function literalizeRegexPart(s: string) {
   if (result2 && result2.length > 1 && result2.index > -1) {
     const prefix = s.substr(0, result2.index);
     const remaining = result2[1];
-
+    console.trace("Oder Springt hier raus");
     return literalizeRegexPart(prefix) + createLiteralRegex(remaining);
   }
 
   // remove all instances of \Q and \E from the remaining text & escape single quotes
+  console.trace("Oder Er Springt hier raus");
 
   console.trace("QueryErgebnisForAnderung: " + JSON.stringify(s));
   const value = s
