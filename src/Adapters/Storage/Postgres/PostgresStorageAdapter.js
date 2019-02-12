@@ -5,6 +5,7 @@ import Parse from 'parse/node';
 // @flow-disable-next
 import _ from 'lodash';
 import sql from './sql';
+var XRegExp = require('xregexp');
 
 const PostgresRelationDoesNotExistError = '42P01';
 const PostgresDuplicateRelationError = '42P07';
@@ -2438,7 +2439,10 @@ function createLiteralRegex(remaining) {
   return remaining
     .split('')
     .map(c => {
-      if (c.match(/[0-9a-zA-Z]/) !== null) {
+
+      var regex = XRegExp('\\p{L}[0-9]');
+      //if (c.match(/[0-9a-zA-Z]/) !== null) {
+      if (c.match(regex) !== null) {
         // don't escape alphanumeric characters
         return c;
       }
@@ -2457,7 +2461,7 @@ function literalizeRegexPart(s: string) {
     // process regex that has a beginning and an end specified for the literal text
     const prefix = s.substr(0, result1.index);
     const remaining = result1[1];
-    console.trace("Springt hier raus");
+    console.trace("Springt hier raus; Prefix: " + prefix + ", Remaining: " + remaining);
     return literalizeRegexPart(prefix) + createLiteralRegex(remaining);
   }
 
@@ -2467,14 +2471,14 @@ function literalizeRegexPart(s: string) {
   if (result2 && result2.length > 1 && result2.index > -1) {
     const prefix = s.substr(0, result2.index);
     const remaining = result2[1];
-    console.trace("Oder Springt hier raus");
+    console.trace("Oder Springt hier raus; Prefix: " + prefix + ", Remaining: " + remaining);
     return literalizeRegexPart(prefix) + createLiteralRegex(remaining);
   }
 
   // remove all instances of \Q and \E from the remaining text & escape single quotes
   console.trace("Oder Er Springt hier raus");
 
-  console.trace("QueryErgebnisForAnderung: " + JSON.stringify(s));
+
   const value = s
   .replace(/([^\\])(\\E)/, '$1')
   .replace(/([^\\])(\\Q)/, '$1')
@@ -2482,8 +2486,6 @@ function literalizeRegexPart(s: string) {
   .replace(/^\\Q/, '')
   .replace(/([^'])'/, `$1''`)
   .replace(/^'([^'])/, `''$1`);
-
-  console.trace("QueryErgebnisNachAnderung: " + JSON.stringify(value));
   return value;
 }
 
