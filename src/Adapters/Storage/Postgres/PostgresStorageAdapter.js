@@ -2459,7 +2459,7 @@ function literalizeRegexPart(s: string) {
 
   // remove all instances of \Q and \E from the remaining text & escape single quotes
 
-  console.trace("QueryErgebnisForAnderung: " + s);
+  console.trace("QueryErgebnisForAnderung: " + JSON.stringify(s));
   const value = s
   .replace(/([^\\])(\\E)/, '$1')
   .replace(/([^\\])(\\Q)/, '$1')
@@ -2468,7 +2468,7 @@ function literalizeRegexPart(s: string) {
   .replace(/([^'])'/, `$1''`)
   .replace(/^'([^'])/, `''$1`);
 
-  console.trace("QueryErgebnisNachAnderung: " + value);
+  console.trace("QueryErgebnisNachAnderung: " + JSON.stringify(value));
   return value;
 }
 
