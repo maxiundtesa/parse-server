@@ -704,8 +704,8 @@ const buildWhereClause = ({ schema, query, index }): WhereClause => {
       patterns.push(`$${index}:raw ${operator} '$${index + 1}:raw'`);
       values.push(name, regex);
 
-      console.trace('VALUES: ' + JSON.stringify(values);
-      console.trace('PATERNS: ' + JSON.stringify(patterns);
+      console.trace('VALUES: ' + JSON.stringify(values));
+      console.trace('PATERNS: ' + JSON.stringify(patterns));
       index += 2;
     }
 
