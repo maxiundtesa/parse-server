@@ -255,6 +255,8 @@ const buildWhereClause = ({ schema, query, index }): WhereClause => {
   let values = [];
   const sorts = [];
 
+
+  console.trace("QueryParams: " + JSON.stringify(query));
   schema = toPostgresSchema(schema);
   for (const fieldName in query) {
     const isArrayField =
