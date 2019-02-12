@@ -723,13 +723,16 @@ const buildWhereClause = ({ schema, query, index }): WhereClause => {
       }
 
       const name = transformDotField(fieldName);
+
+      console.trace('RegexVorher: ' + JSON.stringify(regex));
       regex = processRegexPattern(regex);
+      console.trace('RegexNachher: ' + JSON.stringify(regex));
+
 
       patterns.push(`$${index}:raw ${operator} '$${index + 1}:raw'`);
       values.push(name, regex);
 
       console.trace('VALUES: ' + JSON.stringify(values));
-      console.trace('PATERNS: ' + JSON.stringify(patterns));
       index += 2;
     }
 
