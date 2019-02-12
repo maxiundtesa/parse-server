@@ -2574,7 +2574,7 @@ function literalizeRegexPart(s: string) {
     // process regex that has a beginning and an end specified for the literal text
     const prefix = s.substr(0, result1.index);
     const remaining = result1[1];
-    console.trace("Springt hier raus");
+    console.trace("Springt hier raus; Prefix: " + prefix + ", Remaining: " + remaining);
     return literalizeRegexPart(prefix) + createLiteralRegex(remaining);
   }
 
@@ -2584,7 +2584,7 @@ function literalizeRegexPart(s: string) {
   if (result2 && result2.length > 1 && result2.index > -1) {
     const prefix = s.substr(0, result2.index);
     const remaining = result2[1];
-    console.trace("Oder Springt hier raus");
+    console.trace("Oder Springt hier raus; Prefix: " + prefix + ", Remaining: " + remaining);
     return literalizeRegexPart(prefix) + createLiteralRegex(remaining);
   }
 
