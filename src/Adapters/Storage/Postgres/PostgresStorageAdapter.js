@@ -5,8 +5,8 @@ import Parse from 'parse/node';
 // @flow-disable-next
 import _ from 'lodash';
 import sql from './sql';
-var XRegExp = require('xregexp');
-//import {XRegExp} from "xregexp";
+//var XRegExp = require('xregexp');
+import {XRegExp} from "xregexp";
 
 const PostgresRelationDoesNotExistError = '42P01';
 const PostgresDuplicateRelationError = '42P07';
