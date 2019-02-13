@@ -2434,8 +2434,10 @@ function createLiteralRegex(remaining) {
       const regex = XRegExp('[0-9 ]|\\p{L}');
       if (c.match(regex) !== null) {
         // don't escape alphanumeric characters
+        console.log("Gefunden");
         return c;
       }
+      console.log("Escape");
       // escape everything else (single quotes with single quotes, everything else with a backslash)
       return c === `'` ? `''` : `\\${c}`;
     })
