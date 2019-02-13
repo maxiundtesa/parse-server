@@ -257,8 +257,6 @@ const buildWhereClause = ({ schema, query, index }): WhereClause => {
   let values = [];
   const sorts = [];
 
-
-  console.trace("QueryParams: " + JSON.stringify(query));
   schema = toPostgresSchema(schema);
   for (const fieldName in query) {
     const isArrayField =
@@ -702,10 +700,9 @@ const buildWhereClause = ({ schema, query, index }): WhereClause => {
       const name = transformDotField(fieldName);
 
       regex = processRegexPattern(regex);
-
-
       patterns.push(`$${index}:raw ${operator} '$${index + 1}:raw'`);
       values.push(name, regex);
+      console.trace("REGEX: " + regex);
       index += 2;
     }
 
@@ -2434,10 +2431,8 @@ function createLiteralRegex(remaining) {
       const regex = XRegExp('[0-9 ]|\\p{L}');
       if (c.match(regex) !== null) {
         // don't escape alphanumeric characters
-        console.log("Gefunden");
         return c;
       }
-      console.log("Escape");
       // escape everything else (single quotes with single quotes, everything else with a backslash)
       return c === `'` ? `''` : `\\${c}`;
     })
