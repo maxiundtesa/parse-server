@@ -702,7 +702,6 @@ const buildWhereClause = ({ schema, query, index }): WhereClause => {
       regex = processRegexPattern(regex);
       patterns.push(`$${index}:raw ${operator} '$${index + 1}:raw'`);
       values.push(name, regex);
-      console.trace("REGEX: " + regex);
       index += 2;
     }
 
