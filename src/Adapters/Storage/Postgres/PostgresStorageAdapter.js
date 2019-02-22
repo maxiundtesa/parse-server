@@ -6,7 +6,7 @@ import Parse from 'parse/node';
 import _ from 'lodash';
 import sql from './sql';
 //var XRegExp = require('xregexp');
-import {XRegExp} from "xregexp";
+import XRegExp from 'xregexp';
 
 const PostgresRelationDoesNotExistError = '42P01';
 const PostgresDuplicateRelationError = '42P07';
@@ -1965,12 +1965,14 @@ export class PostgresStorageAdapter implements StorageAdapter {
     const wherePattern =
       where.pattern.length > 0 ? `WHERE ${where.pattern}` : '';
     const qs = `SELECT count(*) FROM $1:name ${wherePattern}`;
-    return this._client.one(qs, values, a => +a.count).catch(error => {
-      if (error.code !== PostgresRelationDoesNotExistError) {
-        throw error;
-      }
-      return 0;
-    });
+    return this._client
+      .one(qs, values, a => +a.count)
+      .catch(error => {
+        if (error.code !== PostgresRelationDoesNotExistError) {
+          throw error;
+        }
+        return 0;
+      });
   }
 
   distinct(
@@ -2439,7 +2441,6 @@ function createLiteralRegex(remaining) {
 }
 
 function literalizeRegexPart(s: string) {
-
   const matcher1 = /\\Q((?!\\E).*)\\E$/;
   const result1: any = s.match(matcher1);
   if (result1 && result1.length > 1 && result1.index > -1) {
@@ -2460,14 +2461,13 @@ function literalizeRegexPart(s: string) {
 
   // remove all instances of \Q and \E from the remaining text & escape single quotes
 
-
   const value = s
-  .replace(/([^\\])(\\E)/, '$1')
-  .replace(/([^\\])(\\Q)/, '$1')
-  .replace(/^\\E/, '')
-  .replace(/^\\Q/, '')
-  .replace(/([^'])'/, `$1''`)
-  .replace(/^'([^'])/, `''$1`);
+    .replace(/([^\\])(\\E)/, '$1')
+    .replace(/([^\\])(\\Q)/, '$1')
+    .replace(/^\\E/, '')
+    .replace(/^\\Q/, '')
+    .replace(/([^'])'/, `$1''`)
+    .replace(/^'([^'])/, `''$1`);
   return value;
 }
 
