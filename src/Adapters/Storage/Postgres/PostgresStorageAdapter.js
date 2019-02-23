@@ -1864,6 +1864,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
 
     const qs = `SELECT ${columns} FROM $1:name ${wherePattern} ${sortPattern} ${limitPattern} ${skipPattern}`;
     debug(qs, values);
+    console.trace('SQL-Query: ' + qs + '; Values: ' + values);
     return this._client
       .any(qs, values)
       .catch(error => {
