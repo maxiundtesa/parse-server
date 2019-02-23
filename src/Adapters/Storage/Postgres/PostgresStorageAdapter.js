@@ -8,6 +8,8 @@ import sql from './sql';
 //var XRegExp = require('xregexp');
 import XRegExp from 'xregexp';
 
+const pgp = require('pg-promise');
+
 const PostgresRelationDoesNotExistError = '42P01';
 const PostgresDuplicateRelationError = '42P07';
 const PostgresDuplicateColumnError = '42701';
@@ -1801,7 +1803,12 @@ export class PostgresStorageAdapter implements StorageAdapter {
 
     const qs = `SELECT ${columns} FROM $1:name ${wherePattern} ${sortPattern} ${limitPattern} ${skipPattern}`;
     debug(qs, values);
-    console.trace('SQL-Query: ' + qs + '; Values: ' + values);
+    const test = pgp.as.format(
+      `SELECT ${columns} FROM $1:name ${wherePattern} ${sortPattern} ${limitPattern} ${skipPattern}`,
+      values
+    );
+
+    console.trace('SQL-Query: ' + test);
     return this._client
       .any(qs, values)
       .catch(error => {
