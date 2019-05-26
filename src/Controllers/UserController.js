@@ -90,7 +90,7 @@ export class UserController extends AdaptableController {
       )
       .then(results => {
         if (results.length != 1) {
-          throw 'nothing found for this token and username';
+          throw 'Failed to reset password: username / email / token is invalid';
         }
 
         if (
@@ -252,7 +252,7 @@ export class UserController extends AdaptableController {
       .catch(error => {
 
         console.log("Update PasswortError: " + JSON.stringify(error));
-        if (error.message) {
+        if (error && error.message) {
           // in case of Parse.Error, fail with the error message only
           return Promise.reject(error.message);
         } else {

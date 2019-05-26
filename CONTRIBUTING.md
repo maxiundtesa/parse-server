@@ -9,7 +9,7 @@ If you are not familiar with Pull Requests and want to know more about them, you
 ### Recommended setup:
 
 * [vscode](https://code.visualstudio.com), the popular IDE.
-* [Jasmine Test Explorer](https://marketplace.visualstudio.com/items?itemName=hbenl.vscode-test-explorer), a very practical test exploration plugin which let you run, debug and see the test results inline.
+* [Jasmine Test Explorer](https://marketplace.visualstudio.com/items?itemName=hbenl.vscode-jasmine-test-adapter), a very practical test exploration plugin which let you run, debug and see the test results inline.
 
 ### Setting up you local machine:
 
@@ -22,6 +22,8 @@ $ npm install # install all the node dependencies
 $ code . # launch vscode
 $ npm run watch # run babel watching for local file changes
 ```
+
+> To launch VS Code from the terminal with the `code` command you first need to follow the [launching from the command line section](https://code.visualstudio.com/docs/setup/mac#_launching-from-the-command-line) in the VS Code setup documentation.
 
 Once you have babel running in watch mode, you can start making changes to parse-server.
 
@@ -68,6 +70,17 @@ If your pull request introduces a change that may affect the storage or retrieva
   - `it_only_db('mongo')` // will make a test that only runs on mongo
   - `it_exclude_dbs(['postgres'])` // will make a test that runs against all DB's but postgres
 
+### Generate Parse Server Config Definition
+
+If you want to make changes to [Parse Server Configuration][config] add the desired configuration to [src/Options/index.js][config-index] and run `npm run definitions`. This will output [src/Options/Definitions.js][config-def] and [src/Options/docs.js][config-docs]. 
+
+To view docs run `npm run docs` and check the `/out` directory.
+
 ### Code of Conduct
 
 This project adheres to the [Contributor Covenant Code of Conduct](https://github.com/parse-community/parse-server/blob/master/CODE_OF_CONDUCT.md). By participating, you are expected to honor this code.
+
+[config]: http://parseplatform.org/parse-server/api/master/ParseServerOptions.html
+[config-def]: https://github.com/parse-community/parse-server/blob/master/src/Options/Definitions.js
+[config-docs]: https://github.com/parse-community/parse-server/blob/master/src/Options/docs.js
+[config-index]: https://github.com/parse-community/parse-server/blob/master/src/Options/index.js

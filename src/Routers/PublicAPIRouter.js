@@ -4,6 +4,7 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import qs from 'querystring';
+import { Parse } from 'parse/node';
 
 const public_html = path.resolve(__dirname, '../../public_html');
 const views = path.resolve(__dirname, '../../views');
@@ -24,7 +25,7 @@ export class PublicAPIRouter extends PromiseRouter {
       return this.missingPublicServerURL();
     }
 
-    if (!token || !username|| !mail) {
+    if (!token || !username || !mail) {
       console.log(`Mailadresse: ${mail}`);
       console.log("PublicApiRouter.js L. 28");
       return this.invalidLink(req);
@@ -89,7 +90,6 @@ export class PublicAPIRouter extends PromiseRouter {
   }
 
   changePassword(req) {
-
     return new Promise((resolve, reject) => {
       const appId = process.env.APP_ID || 'TicketFuchs';
       const config = Config.get(appId);
@@ -166,7 +166,6 @@ export class PublicAPIRouter extends PromiseRouter {
     );
   }
 
-
   resetPassword(req) {
     const appId = process.env.APP_ID || 'TicketFuchs';
     console.log(`AppID: ${appId}`);
@@ -183,35 +182,73 @@ export class PublicAPIRouter extends PromiseRouter {
 
     const { username, token, new_password, mail } = req.body;
 
-    if (!username || !token || !new_password || !mail) {
+    if ((!username || !token || !new_password || !mail)  && req.xhr === false) {
       console.log("PublicApiRouter.js L. 185");
       return this.invalidLink(req);
+    }
+
+    if (!username) {
+      throw new Parse.Error(Parse.Error.USERNAME_MISSING, 'Missing username');
+    }
+
+    if (!token) {
+      throw new Parse.Error(Parse.Error.OTHER_CAUSE, 'Missing token');
+    }
+
+    if (!new_password) {
+      throw new Parse.Error(Parse.Error.PASSWORD_MISSING, 'Missing password');
+    }
+
+    if (!mail) {
+      throw new Parse.Error(Parse.Error., 'Missing Mail');
     }
 
     return config.userController
       .updatePassword(username, token, new_password)
       .then(
         () => {
-          const params = qs.stringify({ mail: mail });
           return Promise.resolve({
-            status: 302,
-            location: `${config.passwordResetSuccessURL}?${params}`,
+            success: true,
           });
         },
         err => {
-          const params = qs.stringify({
-            username: username,
-            token: token,
-            id: config.applicationId,
-            error: err,
-            mail: mail,
-          });
           return Promise.resolve({
-            status: 302,
-            location: `${config.choosePasswordURL}?${params}`,
+            success: false,
+            err,
           });
         }
-      );
+      )
+      .then(result => {
+        const params = qs.stringify({
+          username: username,
+          token: token,
+          id: config.applicationId,
+          error: result.err,
+          app: config.appName,
+          mail: mail,
+        });
+
+        if (req.xhr) {
+          if (result.success) {
+            return Promise.resolve({
+              status: 200,
+              response: 'Password successfully reset',
+            });
+          }
+          if (result.err) {
+            throw new Parse.Error(Parse.Error.OTHER_CAUSE, `${result.err}`);
+          }
+        }
+
+        return Promise.resolve({
+          status: 302,
+          location: `${
+            result.success
+              ? `${config.passwordResetSuccessURL}?mail=${mail}`
+              : `${config.choosePasswordURL}?${params}`
+          }`,
+        });
+      });
   }
 
   invalidLink(req) {
@@ -235,7 +272,7 @@ export class PublicAPIRouter extends PromiseRouter {
   }
 
   invalidVerificationLink(req) {
-    var config = req.config;
+    let config = req.config;
     console.log("PublicApiRouter.js L. 235");
     console.log(`req: ${req}`);
     if(config === undefined) {
@@ -274,20 +311,6 @@ export class PublicAPIRouter extends PromiseRouter {
   }
 
   setConfig(req) {
-
-    var seen = [];
-    console.log(JSON.stringify(req, function(key, val) {
-      if (val != null && typeof val == "object") {
-           if (seen.indexOf(val) >= 0) {
-               return;
-           }
-           seen.push(val);
-       }
-       return val;
-   }));
-
-
-
     const appId = process.env.APP_ID || 'TicketFuchs';
     req.config = Config.get(appId);
     return Promise.resolve();

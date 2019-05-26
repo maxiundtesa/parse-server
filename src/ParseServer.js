@@ -80,7 +80,7 @@ class ParseServer {
       cloud,
       javascriptKey,
       serverURL = requiredParameter('You must provide a serverURL!'),
-      __indexBuildCompletionCallbackForTests = () => {},
+      serverStartComplete,
     } = options;
     // Initialize the node client SDK automatically
     Parse.initialize(appId, javascriptKey || 'unused', masterKey);
@@ -97,12 +97,24 @@ class ParseServer {
 
     logging.setLogger(loggerController);
     const dbInitPromise = databaseController.performInitialization();
-    hooksController.load();
+    const hooksLoadPromise = hooksController.load();
 
     // Note: Tests will start to fail if any validation happens after this is called.
-    if (process.env.TESTING) {
-      __indexBuildCompletionCallbackForTests(dbInitPromise);
-    }
+    Promise.all([dbInitPromise, hooksLoadPromise])
+      .then(() => {
+        if (serverStartComplete) {
+          serverStartComplete();
+        }
+      })
+      .catch(error => {
+        if (serverStartComplete) {
+          serverStartComplete(error);
+        } else {
+          // eslint-disable-next-line no-console
+          console.error(error);
+          process.exit(1);
+        }
+      });
 
     if (cloud) {
       addParseCloud();
@@ -134,7 +146,7 @@ class ParseServer {
    * @static
    * Create an express app for the parse server
    * @param {Object} options let you specify the maxUploadSize when creating the express app  */
-  static app({ maxUploadSize = '20mb', appId }) {
+  static app({ maxUploadSize = '20mb', appId, directAccess }) {
     // This app serves the Parse API directly.
     // It's the equivalent of https://api.parse.com/1 in the hosted Parse API.
     var api = express();
@@ -191,7 +203,10 @@ class ParseServer {
         ParseServer.verifyServerUrl();
       });
     }
-    if (process.env.PARSE_SERVER_ENABLE_EXPERIMENTAL_DIRECT_ACCESS === '1') {
+    if (
+      process.env.PARSE_SERVER_ENABLE_EXPERIMENTAL_DIRECT_ACCESS === '1' ||
+      directAccess
+    ) {
       Parse.CoreManager.setRESTController(
         ParseServerRESTController(appId, appRouter)
       );
@@ -343,14 +358,56 @@ function injectDefaults(options: ParseServerOptions) {
     options.serverURL = `http://localhost:${options.port}${options.mountPath}`;
   }
 
-  options.userSensitiveFields = Array.from(
-    new Set(
-      options.userSensitiveFields.concat(
-        defaults.userSensitiveFields,
-        options.userSensitiveFields
-      )
-    )
-  );
+  // Backwards compatibility
+  if (options.userSensitiveFields) {
+    /* eslint-disable no-console */
+    !process.env.TESTING &&
+      console.warn(
+        `\nDEPRECATED: userSensitiveFields has been replaced by protectedFields allowing the ability to protect fields in all classes with CLP. \n`
+      );
+    /* eslint-enable no-console */
+
+    const userSensitiveFields = Array.from(
+      new Set([
+        ...(defaults.userSensitiveFields || []),
+        ...(options.userSensitiveFields || []),
+      ])
+    );
+
+    // If the options.protectedFields is unset,
+    // it'll be assigned the default above.
+    // Here, protect against the case where protectedFields
+    // is set, but doesn't have _User.
+    if (!('_User' in options.protectedFields)) {
+      options.protectedFields = Object.assign(
+        { _User: [] },
+        options.protectedFields
+      );
+    }
+
+    options.protectedFields['_User']['*'] = Array.from(
+      new Set([
+        ...(options.protectedFields['_User']['*'] || []),
+        ...userSensitiveFields,
+      ])
+    );
+  }
+
+  // Merge protectedFields options with defaults.
+  Object.keys(defaults.protectedFields).forEach(c => {
+    const cur = options.protectedFields[c];
+    if (!cur) {
+      options.protectedFields[c] = defaults.protectedFields[c];
+    } else {
+      Object.keys(defaults.protectedFields[c]).forEach(r => {
+        const unq = new Set([
+          ...(options.protectedFields[c][r] || []),
+          ...defaults.protectedFields[c][r],
+        ]);
+        options.protectedFields[c][r] = Array.from(unq);
+      });
+    }
+  });
 
   options.masterKeyIps = Array.from(
     new Set(

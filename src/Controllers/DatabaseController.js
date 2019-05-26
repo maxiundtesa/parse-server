@@ -162,7 +162,15 @@ const validateQuery = (query: any): void => {
 };
 
 // Filters out any data that shouldn't be on this REST-formatted object.
-const filterSensitiveData = (isMaster, aclGroup, className, object) => {
+const filterSensitiveData = (
+  isMaster,
+  aclGroup,
+  className,
+  protectedFields,
+  object
+) => {
+  protectedFields && protectedFields.forEach(k => delete object[k]);
+
   if (className !== '_User') {
     return object;
   }
@@ -468,7 +476,8 @@ class DatabaseController {
     query: any,
     update: any,
     { acl, many, upsert }: FullQueryOptions = {},
-    skipSanitization: boolean = false
+    skipSanitization: boolean = false,
+    validateOnly: boolean = false
   ): Promise<any> {
     const originalQuery = query;
     const originalUpdate = update;
@@ -549,6 +558,19 @@ class DatabaseController {
               }
               update = transformObjectACL(update);
               transformAuthData(className, update, schema);
+              if (validateOnly) {
+                return this.adapter
+                  .find(className, schema, query, {})
+                  .then(result => {
+                    if (!result || !result.length) {
+                      throw new Parse.Error(
+                        Parse.Error.OBJECT_NOT_FOUND,
+                        'Object not found.'
+                      );
+                    }
+                    return {};
+                  });
+              }
               if (many) {
                 return this.adapter.updateObjectsByQuery(
                   className,
@@ -579,6 +601,9 @@ class DatabaseController {
               Parse.Error.OBJECT_NOT_FOUND,
               'Object not found.'
             );
+          }
+          if (validateOnly) {
+            return result;
           }
           return this.handleRelationUpdates(
             className,
@@ -794,7 +819,8 @@ class DatabaseController {
   create(
     className: string,
     object: any,
-    { acl }: QueryOptions = {}
+    { acl }: QueryOptions = {},
+    validateOnly: boolean = false
   ): Promise<any> {
     // Make a copy of the object, so we don't mutate the incoming data.
     const originalObject = object;
@@ -818,11 +844,13 @@ class DatabaseController {
           : schemaController.validatePermission(className, aclGroup, 'create')
         )
           .then(() => schemaController.enforceClassExists(className))
-          .then(() => schemaController.reloadData())
           .then(() => schemaController.getOneSchema(className, true))
           .then(schema => {
             transformAuthData(className, object, schema);
             flattenUpdateOperatorsForCreate(object);
+            if (validateOnly) {
+              return {};
+            }
             return this.adapter.createObject(
               className,
               SchemaController.convertSchemaToAdapterSchema(schema),
@@ -830,6 +858,9 @@ class DatabaseController {
             );
           })
           .then(result => {
+            if (validateOnly) {
+              return originalObject;
+            }
             return this.handleRelationUpdates(
               className,
               object.objectId,
@@ -1141,7 +1172,8 @@ class DatabaseController {
       distinct,
       pipeline,
       readPreference,
-    }: any = {}
+    }: any = {},
+    auth: any = {}
   ): Promise<any> {
     const isMaster = acl === undefined;
     const aclGroup = acl || [];
@@ -1206,6 +1238,7 @@ class DatabaseController {
               this.reduceInRelation(className, query, schemaController)
             )
             .then(() => {
+              let protectedFields;
               if (!isMaster) {
                 query = this.addPointerPermissions(
                   schemaController,
@@ -1213,6 +1246,15 @@ class DatabaseController {
                   op,
                   query,
                   aclGroup
+                );
+                // ProtectedFields is generated before executing the query so we
+                // can optimize the query using Mongo Projection at a later stage.
+                protectedFields = this.addProtectedFields(
+                  schemaController,
+                  className,
+                  query,
+                  aclGroup,
+                  auth
                 );
               }
               if (!query) {
@@ -1276,6 +1318,7 @@ class DatabaseController {
                         isMaster,
                         aclGroup,
                         className,
+                        protectedFields,
                         object
                       );
                     })
@@ -1304,7 +1347,9 @@ class DatabaseController {
       })
       .then((schema: any) => {
         return this.collectionExists(className)
-          .then(() => this.adapter.count(className, { fields: {} }))
+          .then(() =>
+            this.adapter.count(className, { fields: {} }, null, '', false)
+          )
           .then(count => {
             if (count > 0) {
               throw new Parse.Error(
@@ -1388,6 +1433,42 @@ class DatabaseController {
     } else {
       return query;
     }
+  }
+
+  addProtectedFields(
+    schema: SchemaController.SchemaController,
+    className: string,
+    query: any = {},
+    aclGroup: any[] = [],
+    auth: any = {}
+  ) {
+    const perms = schema.getClassLevelPermissions(className);
+    if (!perms) return null;
+
+    const protectedFields = perms.protectedFields;
+    if (!protectedFields) return null;
+
+    if (aclGroup.indexOf(query.objectId) > -1) return null;
+    if (
+      Object.keys(query).length === 0 &&
+      auth &&
+      auth.user &&
+      aclGroup.indexOf(auth.user.id) > -1
+    )
+      return null;
+
+    let protectedKeys = Object.values(protectedFields).reduce(
+      (acc, val) => acc.concat(val),
+      []
+    ); //.flat();
+    [...(auth.userRoles || [])].forEach(role => {
+      const fields = protectedFields[role];
+      if (fields) {
+        protectedKeys = protectedKeys.filter(v => fields.includes(v));
+      }
+    });
+
+    return protectedKeys;
   }
 
   // TODO: create indexes on first creation of a _User object. Otherwise it's impossible to
