@@ -200,7 +200,7 @@ export class PublicAPIRouter extends PromiseRouter {
     }
 
     if (!mail) {
-      throw new Parse.Error(Parse.Error., 'Missing Mail');
+      throw new Parse.Error(Parse.Error.EMAIL_MISSING, 'Missing Mail');
     }
 
     return config.userController
