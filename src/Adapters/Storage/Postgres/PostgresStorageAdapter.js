@@ -261,8 +261,7 @@ const buildWhereClause = ({ schema, query, index }): WhereClause => {
   let values = [];
   const sorts = [];
 
-
-  console.trace("QueryParams: " + JSON.stringify(query));
+  console.trace('QueryParams: ' + JSON.stringify(query));
   schema = toPostgresSchema(schema);
   for (const fieldName in query) {
     const isArrayField =
@@ -729,7 +728,6 @@ const buildWhereClause = ({ schema, query, index }): WhereClause => {
       console.trace('RegexVorher: ' + JSON.stringify(regex));
       regex = processRegexPattern(regex);
       console.trace('RegexNachher: ' + JSON.stringify(regex));
-
 
       patterns.push(`$${index}:raw ${operator} '$${index + 1}:raw'`);
       values.push(name, regex);
@@ -1445,7 +1443,9 @@ export class PostgresStorageAdapter implements StorageAdapter {
     if (Object.keys(query).length === 0) {
       where.pattern = 'TRUE';
     }
-    const qs = `WITH deleted AS (DELETE FROM $1:name WHERE ${where.pattern} RETURNING *) SELECT count(*) FROM deleted`;
+    const qs = `WITH deleted AS (DELETE FROM $1:name WHERE ${
+      where.pattern
+    } RETURNING *) SELECT count(*) FROM deleted`;
     debug(qs, values);
     const promise = (transactionalSession
       ? transactionalSession.t
@@ -2510,16 +2510,16 @@ function removeWhiteSpace(regex) {
 
 function processRegexPattern(s) {
   if (s && s.startsWith('^')) {
-    console.trace("Starts with");
+    console.trace('Starts with');
     // regex for startsWith
     return '^' + literalizeRegexPart(s.slice(1));
   } else if (s && s.endsWith('$')) {
     // regex for endsWith
-    console.trace("Ends with");
+    console.trace('Ends with');
     return literalizeRegexPart(s.slice(0, s.length - 1)) + '$';
   }
 
-  console.trace("Hat Contains");
+  console.trace('Hat Contains');
   // regex for contains
   return literalizeRegexPart(s);
 }
@@ -2565,10 +2565,10 @@ function createLiteralRegex(remaining) {
       const regex = RegExp('[0-9 ]|\\p{L}', 'u'); // Support all unicode letter chars
       if (c.match(regex) !== null) {
         // don't escape alphanumeric characters
-        console.log("Gefunden");
+        console.log('Gefunden');
         return c;
       }
-      console.log("Escape");
+      console.log('Escape');
       // escape everything else (single quotes with single quotes, everything else with a backslash)
       return c === `'` ? `''` : `\\${c}`;
     })
@@ -2576,15 +2576,16 @@ function createLiteralRegex(remaining) {
 }
 
 function literalizeRegexPart(s: string) {
-
-  console.trace("Parameter: " + JSON.stringify(s));
+  console.trace('Parameter: ' + JSON.stringify(s));
   const matcher1 = /\\Q((?!\\E).*)\\E$/;
   const result1: any = s.match(matcher1);
   if (result1 && result1.length > 1 && result1.index > -1) {
     // process regex that has a beginning and an end specified for the literal text
     const prefix = s.substr(0, result1.index);
     const remaining = result1[1];
-    console.trace("Springt hier raus; Prefix: " + prefix + ", Remaining: " + remaining);
+    console.trace(
+      'Springt hier raus; Prefix: ' + prefix + ', Remaining: ' + remaining
+    );
     return literalizeRegexPart(prefix) + createLiteralRegex(remaining);
   }
 
@@ -2594,23 +2595,25 @@ function literalizeRegexPart(s: string) {
   if (result2 && result2.length > 1 && result2.index > -1) {
     const prefix = s.substr(0, result2.index);
     const remaining = result2[1];
-    console.trace("Oder Springt hier raus; Prefix: " + prefix + ", Remaining: " + remaining);
+    console.trace(
+      'Oder Springt hier raus; Prefix: ' + prefix + ', Remaining: ' + remaining
+    );
     return literalizeRegexPart(prefix) + createLiteralRegex(remaining);
   }
 
   // remove all instances of \Q and \E from the remaining text & escape single quotes
-  console.trace("Oder Er Springt hier raus");
+  console.trace('Oder Er Springt hier raus');
 
-  console.trace("QueryErgebnisForAnderung: " + JSON.stringify(s));
+  console.trace('QueryErgebnisForAnderung: ' + JSON.stringify(s));
   const value = s
-  .replace(/([^\\])(\\E)/, '$1')
-  .replace(/([^\\])(\\Q)/, '$1')
-  .replace(/^\\E/, '')
-  .replace(/^\\Q/, '')
-  .replace(/([^'])'/, `$1''`)
-  .replace(/^'([^'])/, `''$1`);
+    .replace(/([^\\])(\\E)/, '$1')
+    .replace(/([^\\])(\\Q)/, '$1')
+    .replace(/^\\E/, '')
+    .replace(/^\\Q/, '')
+    .replace(/([^'])'/, `$1''`)
+    .replace(/^'([^'])/, `''$1`);
 
-  console.trace("QueryErgebnisNachAnderung: " + JSON.stringify(value));
+  console.trace('QueryErgebnisNachAnderung: ' + JSON.stringify(value));
   return value;
 }
 

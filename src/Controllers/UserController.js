@@ -250,8 +250,7 @@ export class UserController extends AdaptableController {
     return this.checkResetTokenValidity(username, token)
       .then(user => updateUserPassword(user.objectId, password, this.config))
       .catch(error => {
-
-        console.log("Update PasswortError: " + JSON.stringify(error));
+        console.log('Update PasswortError: ' + JSON.stringify(error));
         if (error && error.message) {
           // in case of Parse.Error, fail with the error message only
           return Promise.reject(error.message);
