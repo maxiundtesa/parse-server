@@ -20,7 +20,7 @@ export class UsersRouter extends ClassesRouter {
    */
   static removeHiddenProperties(obj) {
     for (var key in obj) {
-      if (obj.hasOwnProperty(key)) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
         // Regexp comes from Parse.Object.prototype.validate
         if (key !== '__type' && !/^[A-Za-z][0-9A-Za-z_]*$/.test(key)) {
           delete obj[key];
@@ -241,6 +241,8 @@ export class UsersRouter extends ClassesRouter {
     // Remove hidden properties.
     UsersRouter.removeHiddenProperties(user);
 
+    req.config.filesController.expandFilesInObject(req.config, user);
+
     // Before login trigger; throws if failure
     await maybeRunTrigger(
       TriggerTypes.beforeLogin,
@@ -260,8 +262,6 @@ export class UsersRouter extends ClassesRouter {
     });
 
     user.sessionToken = sessionData.sessionToken;
-
-    req.config.filesController.expandFilesInObject(req.config, user);
 
     await createSession();
     return { response: user };

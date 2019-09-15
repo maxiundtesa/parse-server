@@ -839,9 +839,7 @@ RestWrite.prototype._validatePasswordHistory = function() {
               return Promise.reject(
                 new Parse.Error(
                   Parse.Error.VALIDATION_ERROR,
-                  `New password should not be the same as last ${
-                    this.config.passwordPolicy.maxPasswordHistory
-                  } passwords.`
+                  `New password should not be the same as last ${this.config.passwordPolicy.maxPasswordHistory} passwords.`
                 )
               );
             throw err;
@@ -874,7 +872,7 @@ RestWrite.prototype.createSessionTokenIfNeeded = function() {
   return this.createSessionToken();
 };
 
-RestWrite.prototype.createSessionToken = function() {
+RestWrite.prototype.createSessionToken = async function() {
   // cloud installationId from Cloud Code,
   // never create session tokens from there.
   if (this.auth.installationId && this.auth.installationId === 'cloud') {
@@ -1713,7 +1711,7 @@ RestWrite.prototype._updateResponseWithData = function(response, data) {
   this.storage.fieldsChangedByTrigger.forEach(fieldName => {
     const dataValue = data[fieldName];
 
-    if (!response.hasOwnProperty(fieldName)) {
+    if (!Object.prototype.hasOwnProperty.call(response, fieldName)) {
       response[fieldName] = dataValue;
     }
 

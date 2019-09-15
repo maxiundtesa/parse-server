@@ -271,7 +271,7 @@ const buildWhereClause = ({ schema, query, index }): WhereClause => {
     const initialPatternsLength = patterns.length;
     const fieldValue = query[fieldName];
 
-    // nothingin the schema, it's gonna blow up
+    // nothing in the schema, it's gonna blow up
     if (!schema.fields[fieldName]) {
       // as it won't exist
       if (fieldValue && fieldValue.$exists === false) {
@@ -445,7 +445,7 @@ const buildWhereClause = ({ schema, query, index }): WhereClause => {
             const inPatterns = [];
             values.push(fieldName);
             baseArray.forEach((listElem, listIndex) => {
-              if (listElem !== null) {
+              if (listElem != null) {
                 values.push(listElem);
                 inPatterns.push(`$${index + 1 + listIndex}`);
               }
@@ -501,6 +501,12 @@ const buildWhereClause = ({ schema, query, index }): WhereClause => {
       }
       values.push(fieldName, JSON.stringify(fieldValue.$all));
       index += 2;
+    } else if (Array.isArray(fieldValue.$all)) {
+      if (fieldValue.$all.length === 1) {
+        patterns.push(`$${index}:name = $${index + 1}`);
+        values.push(fieldName, fieldValue.$all[0].objectId);
+        index += 2;
+      }
     }
 
     if (typeof fieldValue.$exists !== 'undefined') {
@@ -912,7 +918,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
         delete existingIndexes[name];
       } else {
         Object.keys(field).forEach(key => {
-          if (!fields.hasOwnProperty(key)) {
+          if (!Object.prototype.hasOwnProperty.call(fields, key)) {
             throw new Parse.Error(
               Parse.Error.INVALID_QUERY,
               `Field ${key} does not exist, cannot add index.`
@@ -1443,9 +1449,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
     if (Object.keys(query).length === 0) {
       where.pattern = 'TRUE';
     }
-    const qs = `WITH deleted AS (DELETE FROM $1:name WHERE ${
-      where.pattern
-    } RETURNING *) SELECT count(*) FROM deleted`;
+    const qs = `WITH deleted AS (DELETE FROM $1:name WHERE ${where.pattern} RETURNING *) SELECT count(*) FROM deleted`;
     debug(qs, values);
     const promise = (transactionalSession
       ? transactionalSession.t
@@ -2236,7 +2240,12 @@ export class PostgresStorageAdapter implements StorageAdapter {
       }
       if (stage.$match) {
         const patterns = [];
-        const orOrAnd = stage.$match.hasOwnProperty('$or') ? ' OR ' : ' AND ';
+        const orOrAnd = Object.prototype.hasOwnProperty.call(
+          stage.$match,
+          '$or'
+        )
+          ? ' OR '
+          : ' AND ';
 
         if (stage.$match.$or) {
           const collapse = {};
@@ -2311,7 +2320,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
       )
       .then(results => {
         results.forEach(result => {
-          if (!result.hasOwnProperty('objectId')) {
+          if (!Object.prototype.hasOwnProperty.call(result, 'objectId')) {
             result.objectId = null;
           }
           if (groupValues) {

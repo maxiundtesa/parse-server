@@ -17,6 +17,11 @@ module.exports.ParseServerOptions = {
     action: parsers.booleanParser,
     default: true,
   },
+  allowHeaders: {
+    env: 'PARSE_SERVER_ALLOW_HEADERS',
+    help: 'Add headers to Access-Control-Allow-Headers',
+    action: parsers.arrayParser,
+  },
   analyticsAdapter: {
     env: 'PARSE_SERVER_ANALYTICS_ADAPTER',
     help: 'Adapter module for the analytics',
@@ -329,6 +334,14 @@ module.exports.ParseServerOptions = {
       'The TTL for caching the schema for optimizing read/write operations. You should put a long TTL when your DB is in production. default to 5000; set 0 to disable.',
     action: parsers.numberParser('schemaCacheTTL'),
     default: 5000,
+  },
+  serverCloseComplete: {
+    env: 'PARSE_SERVER_SERVER_CLOSE_COMPLETE',
+    help: 'Callback when server has closed',
+  },
+  serverStartComplete: {
+    env: 'PARSE_SERVER_SERVER_START_COMPLETE',
+    help: 'Callback when server has started',
   },
   serverURL: {
     env: 'PARSE_SERVER_URL',

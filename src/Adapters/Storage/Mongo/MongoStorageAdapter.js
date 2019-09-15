@@ -146,6 +146,7 @@ export class MongoStorageAdapter implements StorageAdapter {
     this._collectionPrefix = collectionPrefix;
     this._mongoOptions = mongoOptions;
     this._mongoOptions.useNewUrlParser = true;
+    this._mongoOptions.useUnifiedTopology = true;
 
     // MaxTimeMS is not a global MongoDB client option, it is applied per operation.
     this._maxTimeMS = mongoOptions.maxTimeMS;
@@ -203,9 +204,9 @@ export class MongoStorageAdapter implements StorageAdapter {
 
   handleShutdown() {
     if (!this.client) {
-      return;
+      return Promise.resolve();
     }
-    this.client.close(false);
+    return this.client.close(false);
   }
 
   _adaptiveCollection(name: string) {
@@ -278,7 +279,7 @@ export class MongoStorageAdapter implements StorageAdapter {
         delete existingIndexes[name];
       } else {
         Object.keys(field).forEach(key => {
-          if (!fields.hasOwnProperty(key)) {
+          if (!Object.prototype.hasOwnProperty.call(fields, key)) {
             throw new Parse.Error(
               Parse.Error.INVALID_QUERY,
               `Field ${key} does not exist, cannot add index.`
@@ -794,11 +795,16 @@ export class MongoStorageAdapter implements StorageAdapter {
       )
       .then(results => {
         results.forEach(result => {
-          if (result.hasOwnProperty('_id')) {
+          if (Object.prototype.hasOwnProperty.call(result, '_id')) {
             if (isPointerField && result._id) {
               result._id = result._id.split('$')[1];
             }
-            if (result._id == null || _.isEmpty(result._id)) {
+            if (
+              result._id == null ||
+              result._id == undefined ||
+              (['object', 'string'].includes(typeof result._id) &&
+                _.isEmpty(result._id))
+            ) {
               result._id = null;
             }
             result.objectId = result._id;
@@ -835,7 +841,9 @@ export class MongoStorageAdapter implements StorageAdapter {
   // As much as I hate recursion...this seemed like a good fit for it. We're essentially traversing
   // down a tree to find a "leaf node" and checking to see if it needs to be converted.
   _parseAggregateArgs(schema: any, pipeline: any): any {
-    if (Array.isArray(pipeline)) {
+    if (pipeline === null) {
+      return null;
+    } else if (Array.isArray(pipeline)) {
       return pipeline.map(value => this._parseAggregateArgs(schema, value));
     } else if (typeof pipeline === 'object') {
       const returnValue = {};
@@ -845,9 +853,9 @@ export class MongoStorageAdapter implements StorageAdapter {
             // Pass objects down to MongoDB...this is more than likely an $exists operator.
             returnValue[`_p_${field}`] = pipeline[field];
           } else {
-            returnValue[`_p_${field}`] = `${schema.fields[field].targetClass}$${
-              pipeline[field]
-            }`;
+            returnValue[
+              `_p_${field}`
+            ] = `${schema.fields[field].targetClass}$${pipeline[field]}`;
           }
         } else if (
           schema.fields[field] &&
@@ -1023,7 +1031,7 @@ export class MongoStorageAdapter implements StorageAdapter {
       const existingIndexes = schema.indexes;
       for (const key in existingIndexes) {
         const index = existingIndexes[key];
-        if (index.hasOwnProperty(fieldName)) {
+        if (Object.prototype.hasOwnProperty.call(index, fieldName)) {
           return Promise.resolve();
         }
       }

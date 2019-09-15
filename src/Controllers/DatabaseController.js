@@ -119,7 +119,7 @@ const validateQuery = (
          */
         Object.keys(query).forEach(key => {
           const noCollisions = !query.$or.some(subq =>
-            Object.hasOwnProperty.call(subq, key)
+            Object.prototype.hasOwnProperty.call(subq, key)
           );
           let hasNears = false;
           if (query[key] != null && typeof query[key] == 'object') {
@@ -192,15 +192,69 @@ const validateQuery = (
 
 // Filters out any data that shouldn't be on this REST-formatted object.
 const filterSensitiveData = (
-  isMaster,
-  aclGroup,
-  className,
-  protectedFields,
-  object
+  isMaster: boolean,
+  aclGroup: any[],
+  auth: any,
+  operation: any,
+  schema: SchemaController.SchemaController,
+  className: string,
+  protectedFields: null | Array<any>,
+  object: any
 ) => {
-  protectedFields && protectedFields.forEach(k => delete object[k]);
+  let userId = null;
+  if (auth && auth.user) userId = auth.user.id;
 
-  if (className !== '_User') {
+  // replace protectedFields when using pointer-permissions
+  const perms = schema.getClassLevelPermissions(className);
+  if (perms) {
+    const isReadOperation = ['get', 'find'].indexOf(operation) > -1;
+
+    if (isReadOperation && perms.protectedFields) {
+      // extract protectedFields added with the pointer-permission prefix
+      const protectedFieldsPointerPerm = Object.keys(perms.protectedFields)
+        .filter(key => key.startsWith('userField:'))
+        .map(key => {
+          return { key: key.substring(10), value: perms.protectedFields[key] };
+        });
+
+      const newProtectedFields: Array<string> = [];
+      let overrideProtectedFields = false;
+
+      // check if the object grants the current user access based on the extracted fields
+      protectedFieldsPointerPerm.forEach(pointerPerm => {
+        let pointerPermIncludesUser = false;
+        const readUserFieldValue = object[pointerPerm.key];
+        if (readUserFieldValue) {
+          if (Array.isArray(readUserFieldValue)) {
+            pointerPermIncludesUser = readUserFieldValue.some(
+              user => user.objectId && user.objectId === userId
+            );
+          } else {
+            pointerPermIncludesUser =
+              readUserFieldValue.objectId &&
+              readUserFieldValue.objectId === userId;
+          }
+        }
+
+        if (pointerPermIncludesUser) {
+          overrideProtectedFields = true;
+          newProtectedFields.push(...pointerPerm.value);
+        }
+      });
+
+      // if atleast one pointer-permission affected the current user override the protectedFields
+      if (overrideProtectedFields) protectedFields = newProtectedFields;
+    }
+  }
+
+  const isUserClass = className === '_User';
+
+  /* special treat for the user class: don't filter protectedFields if currently loggedin user is
+  the retrieved user */
+  if (!(isUserClass && userId && object.objectId === userId))
+    protectedFields && protectedFields.forEach(k => delete object[k]);
+
+  if (!isUserClass) {
     return object;
   }
 
@@ -1315,8 +1369,9 @@ class DatabaseController {
                     query,
                     aclGroup
                   );
-                  // ProtectedFields is generated before executing the query so we
-                  // can optimize the query using Mongo Projection at a later stage.
+                  /* Don't use projections to optimize the protectedFields since the protectedFields
+                  based on pointer-permissions are determined after querying. The filtering can
+                  overwrite the protected fields. */
                   protectedFields = this.addProtectedFields(
                     schemaController,
                     className,
@@ -1385,6 +1440,9 @@ class DatabaseController {
                         return filterSensitiveData(
                           isMaster,
                           aclGroup,
+                          auth,
+                          op,
+                          schemaController,
                           className,
                           protectedFields,
                           object
@@ -1482,23 +1540,23 @@ class DatabaseController {
       };
 
       const permFields = perms[field];
-      const ors = permFields.map(key => {
+      const ors = permFields.flatMap(key => {
+        // constraint for single pointer setup
         const q = {
           [key]: userPointer,
         };
+        // constraint for users-array setup
+        const qa = {
+          [key]: { $all: [userPointer] },
+        };
         // if we already have a constraint on the key, use the $and
-        if (query.hasOwnProperty(key)) {
-          return { $and: [q, query] };
+        if (Object.prototype.hasOwnProperty.call(query, key)) {
+          return [{ $and: [q, query] }, { $and: [qa, query] }];
         }
         // otherwise just add the constaint
-        return Object.assign({}, query, {
-          [`${key}`]: userPointer,
-        });
+        return [Object.assign({}, query, q), Object.assign({}, query, qa)];
       });
-      if (ors.length > 1) {
-        return { $or: ors };
-      }
-      return ors[0];
+      return { $or: ors };
     } else {
       return query;
     }
@@ -1518,18 +1576,13 @@ class DatabaseController {
     if (!protectedFields) return null;
 
     if (aclGroup.indexOf(query.objectId) > -1) return null;
-    if (
-      Object.keys(query).length === 0 &&
-      auth &&
-      auth.user &&
-      aclGroup.indexOf(auth.user.id) > -1
-    )
-      return null;
 
-    let protectedKeys = Object.values(protectedFields).reduce(
-      (acc, val) => acc.concat(val),
-      []
-    ); //.flat();
+    // remove userField keys since they are filtered after querying
+    let protectedKeys = Object.keys(protectedFields).reduce((acc, val) => {
+      if (val.startsWith('userField:')) return acc;
+      return acc.concat(protectedFields[val]);
+    }, []);
+
     [...(auth.userRoles || [])].forEach(role => {
       const fields = protectedFields[role];
       if (fields) {

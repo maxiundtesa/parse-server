@@ -26,6 +26,8 @@ export interface ParseServerOptions {
   masterKeyIps: ?(string[]);
   /* Sets the app name */
   appName: ?string;
+  /* Add headers to Access-Control-Allow-Headers */
+  allowHeaders: ?(string[]);
   /* Adapter module for the analytics */
   analyticsAdapter: ?Adapter<AnalyticsAdapter>;
   /* Adapter module for the files sub-system */
@@ -199,8 +201,10 @@ export interface ParseServerOptions {
   :ENV: PARSE_SERVER_PLAYGROUND_PATH
   :DEFAULT: /playground */
   playgroundPath: ?string;
-
+  /* Callback when server has started */
   serverStartComplete: ?(error: ?Error) => void;
+  /* Callback when server has closed */
+  serverCloseComplete: ?() => void;
 }
 
 export interface CustomPagesOptions {
