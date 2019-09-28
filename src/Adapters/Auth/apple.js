@@ -51,7 +51,11 @@ const verifyIdToken = async ({ token, id }, clientID) => {
       `auth data is invalid for this user.`
     );
   }
-  if (clientID !== undefined && jwtClaims.aud !== clientID) {
+  if (
+    clientID !== undefined &&
+    Array.isArray(clientID) &&
+    clientID.includes(jwtClaims.aud) === false
+  ) {
     throw new Parse.Error(
       Parse.Error.OBJECT_NOT_FOUND,
       `jwt aud parameter does not include this client - is: ${jwtClaims.aud} | expected: ${clientID}`
