@@ -43,7 +43,7 @@
     "mime": "2.4.4",
     "mongodb": "3.3.2",
     "node-rsa": "1.0.5",
-    "parse": "git+https://github.com/maxiundtesa/Parse-SDK-JS.git",
+    "parse": "2.7.1",
     "pg-promise": "9.1.4",
     "pluralize": "^8.0.0",
     "redis": "2.8.0",
