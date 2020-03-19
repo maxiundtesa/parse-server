@@ -225,6 +225,32 @@ describe('Parse.Query Aggregate testing', () => {
       });
   });
 
+  it('group by multiple columns ', done => {
+    const obj1 = new TestObject();
+    const obj2 = new TestObject();
+    const obj3 = new TestObject();
+    const pipeline = [
+      {
+        group: {
+          objectId: {
+            score: '$score',
+            views: '$views',
+          },
+          count: { $sum: 1 },
+        },
+      },
+    ];
+    Parse.Object.saveAll([obj1, obj2, obj3])
+      .then(() => {
+        const query = new Parse.Query(TestObject);
+        return query.aggregate(pipeline);
+      })
+      .then(results => {
+        expect(results.length).toEqual(5);
+        done();
+      });
+  });
+
   it('group by date object', done => {
     const obj1 = new TestObject();
     const obj2 = new TestObject();

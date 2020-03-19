@@ -262,10 +262,12 @@ class ParseServer {
 
     if (options.mountGraphQL === true || options.mountPlayground === true) {
       let graphQLCustomTypeDefs = undefined;
-      if (options.graphQLSchema) {
+      if (typeof options.graphQLSchema === 'string') {
         graphQLCustomTypeDefs = parse(
           fs.readFileSync(options.graphQLSchema, 'utf8')
         );
+      } else if (typeof options.graphQLSchema === 'object') {
+        graphQLCustomTypeDefs = options.graphQLSchema;
       }
 
       const parseGraphQLServer = new ParseGraphQLServer(this, {
@@ -374,6 +376,16 @@ function injectDefaults(options: ParseServerOptions) {
 
   if (!Object.prototype.hasOwnProperty.call(options, 'serverURL')) {
     options.serverURL = `http://localhost:${options.port}${options.mountPath}`;
+  }
+
+  // Reserved Characters
+  if (options.appId) {
+    const regex = /[!#$%'()*+&/:;=?@[\]{}^,|<>]/g;
+    if (options.appId.match(regex)) {
+      console.warn(
+        `\nWARNING, appId that contains special characters can cause issues while using with urls.\n`
+      );
+    }
   }
 
   // Backwards compatibility

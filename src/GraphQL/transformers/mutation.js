@@ -1,3 +1,6 @@
+import Parse from 'parse/node';
+import { fromGlobalId } from 'graphql-relay';
+import { handleUpload } from '../loaders/filesMutations';
 import * as defaultGraphQLTypes from '../loaders/defaultGraphQLTypes';
 import * as objectsMutations from '../helpers/objectsMutations';
 
@@ -38,6 +41,9 @@ const transformTypes = async (
           case inputTypeField.type === defaultGraphQLTypes.POLYGON_INPUT:
             fields[field] = transformers.polygon(fields[field]);
             break;
+          case inputTypeField.type === defaultGraphQLTypes.FILE_INPUT:
+            fields[field] = await transformers.file(fields[field], req);
+            break;
           case parseClass.fields[field].type === 'Relation':
             fields[field] = await transformers.relation(
               parseClass.fields[field].targetClass,
@@ -60,11 +66,21 @@ const transformTypes = async (
       }
     });
     await Promise.all(promises);
+    if (fields.ACL) fields.ACL = transformers.ACL(fields.ACL);
   }
   return fields;
 };
 
 const transformers = {
+  file: async ({ file, upload }, { config }) => {
+    if (upload) {
+      const { fileInfo } = await handleUpload(upload, config);
+      return { name: fileInfo.name, __type: 'File' };
+    } else if (file && file.name) {
+      return { name: file.name, __type: 'File' };
+    }
+    throw new Parse.Error(Parse.Error.FILE_SAVE_ERROR, 'Invalid file upload.');
+  },
   polygon: value => ({
     __type: 'Polygon',
     coordinates: value.map(geoPoint => [geoPoint.latitude, geoPoint.longitude]),
@@ -73,6 +89,32 @@ const transformers = {
     ...value,
     __type: 'GeoPoint',
   }),
+  ACL: value => {
+    const parseACL = {};
+    if (value.public) {
+      parseACL['*'] = {
+        read: value.public.read,
+        write: value.public.write,
+      };
+    }
+    if (value.users) {
+      value.users.forEach(rule => {
+        parseACL[rule.userId] = {
+          read: rule.read,
+          write: rule.write,
+        };
+      });
+    }
+    if (value.roles) {
+      value.roles.forEach(rule => {
+        parseACL[`role:${rule.roleName}`] = {
+          read: rule.read,
+          write: rule.write,
+        };
+      });
+    }
+    return parseACL;
+  },
   relation: async (
     targetClass,
     field,
@@ -80,9 +122,10 @@ const transformers = {
     parseGraphQLSchema,
     { config, auth, info }
   ) => {
-    if (Object.keys(value) === 0)
-      throw new Error(
-        `You need to provide atleast one operation on the relation mutation of field ${field}`
+    if (Object.keys(value).length === 0)
+      throw new Parse.Error(
+        Parse.Error.INVALID_POINTER,
+        `You need to provide at least one operation on the relation mutation of field ${field}`
       );
 
     const op = {
@@ -116,11 +159,17 @@ const transformers = {
 
     if (value.add || nestedObjectsToAdd.length > 0) {
       if (!value.add) value.add = [];
-      value.add = value.add.map(input => ({
-        __type: 'Pointer',
-        className: targetClass,
-        objectId: input,
-      }));
+      value.add = value.add.map(input => {
+        const globalIdObject = fromGlobalId(input);
+        if (globalIdObject.type === targetClass) {
+          input = globalIdObject.id;
+        }
+        return {
+          __type: 'Pointer',
+          className: targetClass,
+          objectId: input,
+        };
+      });
       op.ops.push({
         __op: 'AddRelation',
         objects: [...value.add, ...nestedObjectsToAdd],
@@ -130,11 +179,17 @@ const transformers = {
     if (value.remove) {
       op.ops.push({
         __op: 'RemoveRelation',
-        objects: value.remove.map(input => ({
-          __type: 'Pointer',
-          className: targetClass,
-          objectId: input,
-        })),
+        objects: value.remove.map(input => {
+          const globalIdObject = fromGlobalId(input);
+          if (globalIdObject.type === targetClass) {
+            input = globalIdObject.id;
+          }
+          return {
+            __type: 'Pointer',
+            className: targetClass,
+            objectId: input,
+          };
+        }),
       });
     }
     return op;
@@ -146,8 +201,9 @@ const transformers = {
     parseGraphQLSchema,
     { config, auth, info }
   ) => {
-    if (Object.keys(value) > 1 || Object.keys(value) === 0)
-      throw new Error(
+    if (Object.keys(value).length > 1 || Object.keys(value).length === 0)
+      throw new Parse.Error(
+        Parse.Error.INVALID_POINTER,
         `You need to provide link OR createLink on the pointer mutation of field ${field}`
       );
 
@@ -172,10 +228,15 @@ const transformers = {
       };
     }
     if (value.link) {
+      let objectId = value.link;
+      const globalIdObject = fromGlobalId(objectId);
+      if (globalIdObject.type === targetClass) {
+        objectId = globalIdObject.id;
+      }
       return {
         __type: 'Pointer',
         className: targetClass,
-        objectId: value.link,
+        objectId,
       };
     }
   },

@@ -1,5 +1,10 @@
 import Parse from 'parse/node';
-import { GraphQLSchema, GraphQLObjectType } from 'graphql';
+import {
+  GraphQLSchema,
+  GraphQLObjectType,
+  DocumentNode,
+  GraphQLNamedType,
+} from 'graphql';
 import { mergeSchemas, SchemaDirectiveVisitor } from 'graphql-tools';
 import requiredParameter from '../requiredParameter';
 import * as defaultGraphQLTypes from './loaders/defaultGraphQLTypes';
@@ -16,6 +21,7 @@ import { toGraphQLError } from './parseGraphQLUtils';
 import * as schemaDirectives from './loaders/schemaDirectives';
 import * as schemaTypes from './loaders/schemaTypes';
 import { getFunctionNames } from '../triggers';
+import * as defaultRelaySchema from './loaders/defaultRelaySchema';
 
 const RESERVED_GRAPHQL_TYPE_NAMES = [
   'String',
@@ -27,10 +33,25 @@ const RESERVED_GRAPHQL_TYPE_NAMES = [
   'Query',
   'Mutation',
   'Subscription',
+  'CreateFileInput',
+  'CreateFilePayload',
   'Viewer',
-  'SignUpFieldsInput',
-  'LogInFieldsInput',
+  'SignUpInput',
+  'SignUpPayload',
+  'LogInInput',
+  'LogInPayload',
+  'LogOutInput',
+  'LogOutPayload',
   'CloudCodeFunction',
+  'CallCloudCodeInput',
+  'CallCloudCodePayload',
+  'CreateClassInput',
+  'CreateClassPayload',
+  'UpdateClassInput',
+  'UpdateClassPayload',
+  'DeleteClassInput',
+  'DeleteClassPayload',
+  'PageInfo',
 ];
 const RESERVED_GRAPHQL_QUERY_NAMES = ['health', 'viewer', 'class', 'classes'];
 const RESERVED_GRAPHQL_MUTATION_NAMES = [
@@ -48,7 +69,14 @@ class ParseGraphQLSchema {
   databaseController: DatabaseController;
   parseGraphQLController: ParseGraphQLController;
   parseGraphQLConfig: ParseGraphQLConfig;
-  graphQLCustomTypeDefs: any;
+  log: any;
+  appId: string;
+  graphQLCustomTypeDefs: ?(
+    | string
+    | GraphQLSchema
+    | DocumentNode
+    | GraphQLNamedType[]
+  );
 
   constructor(
     params: {
@@ -56,6 +84,12 @@ class ParseGraphQLSchema {
       parseGraphQLController: ParseGraphQLController,
       log: any,
       appId: string,
+      graphQLCustomTypeDefs: ?(
+        | string
+        | GraphQLSchema
+        | DocumentNode
+        | GraphQLNamedType[]
+      ),
     } = {}
   ) {
     this.parseGraphQLController =
@@ -105,8 +139,10 @@ class ParseGraphQLSchema {
     this.graphQLSubscriptions = {};
     this.graphQLSchemaDirectivesDefinitions = null;
     this.graphQLSchemaDirectives = {};
+    this.relayNodeInterface = null;
 
     defaultGraphQLTypes.load(this);
+    defaultRelaySchema.load(this);
     schemaTypes.load(this);
 
     this._getParseClassesWithConfig(parseClasses, parseGraphQLConfig).forEach(
@@ -161,19 +197,86 @@ class ParseGraphQLSchema {
     if (this.graphQLCustomTypeDefs) {
       schemaDirectives.load(this);
 
-      this.graphQLSchema = mergeSchemas({
-        schemas: [
-          this.graphQLSchemaDirectivesDefinitions,
-          this.graphQLAutoSchema,
-          this.graphQLCustomTypeDefs,
-        ],
-        mergeDirectives: true,
-      });
+      if (typeof this.graphQLCustomTypeDefs.getTypeMap === 'function') {
+        const customGraphQLSchemaTypeMap = this.graphQLCustomTypeDefs.getTypeMap();
+        Object.values(customGraphQLSchemaTypeMap).forEach(
+          customGraphQLSchemaType => {
+            if (
+              !customGraphQLSchemaType ||
+              !customGraphQLSchemaType.name ||
+              customGraphQLSchemaType.name.startsWith('__')
+            ) {
+              return;
+            }
+            const autoGraphQLSchemaType = this.graphQLAutoSchema.getType(
+              customGraphQLSchemaType.name
+            );
+            if (
+              autoGraphQLSchemaType &&
+              typeof customGraphQLSchemaType.getFields === 'function'
+            ) {
+              const findAndAddLastType = type => {
+                if (type.name) {
+                  if (!this.graphQLAutoSchema.getType(type)) {
+                    // To avoid schema stitching (Unknow type) bug on variables
+                    // transfer the final type to the Auto Schema
+                    this.graphQLAutoSchema._typeMap[type.name] = type;
+                  }
+                } else {
+                  if (type.ofType) {
+                    findAndAddLastType(type.ofType);
+                  }
+                }
+              };
+              Object.values(customGraphQLSchemaType.getFields()).forEach(
+                field => {
+                  findAndAddLastType(field.type);
+                  if (field.args) {
+                    field.args.forEach(arg => {
+                      findAndAddLastType(arg.type);
+                    });
+                  }
+                }
+              );
+              autoGraphQLSchemaType._fields = {
+                ...autoGraphQLSchemaType._fields,
+                ...customGraphQLSchemaType._fields,
+              };
+            }
+          }
+        );
+        this.graphQLSchema = mergeSchemas({
+          schemas: [
+            this.graphQLSchemaDirectivesDefinitions,
+            this.graphQLCustomTypeDefs,
+            this.graphQLAutoSchema,
+          ],
+          mergeDirectives: true,
+        });
+      } else if (typeof this.graphQLCustomTypeDefs === 'function') {
+        this.graphQLSchema = await this.graphQLCustomTypeDefs({
+          directivesDefinitionsSchema: this.graphQLSchemaDirectivesDefinitions,
+          autoSchema: this.graphQLAutoSchema,
+          mergeSchemas,
+        });
+      } else {
+        this.graphQLSchema = mergeSchemas({
+          schemas: [
+            this.graphQLSchemaDirectivesDefinitions,
+            this.graphQLAutoSchema,
+            this.graphQLCustomTypeDefs,
+          ],
+          mergeDirectives: true,
+        });
+      }
 
       const graphQLSchemaTypeMap = this.graphQLSchema.getTypeMap();
       Object.keys(graphQLSchemaTypeMap).forEach(graphQLSchemaTypeName => {
         const graphQLSchemaType = graphQLSchemaTypeMap[graphQLSchemaTypeName];
-        if (typeof graphQLSchemaType.getFields === 'function') {
+        if (
+          typeof graphQLSchemaType.getFields === 'function' &&
+          this.graphQLCustomTypeDefs.definitions
+        ) {
           const graphQLCustomTypeDef = this.graphQLCustomTypeDefs.definitions.find(
             definition => definition.name.value === graphQLSchemaTypeName
           );
@@ -208,10 +311,16 @@ class ParseGraphQLSchema {
     return this.graphQLSchema;
   }
 
-  addGraphQLType(type, throwError = false, ignoreReserved = false) {
+  addGraphQLType(
+    type,
+    throwError = false,
+    ignoreReserved = false,
+    ignoreConnection = false
+  ) {
     if (
       (!ignoreReserved && RESERVED_GRAPHQL_TYPE_NAMES.includes(type.name)) ||
-      this.graphQLTypes.find(existingType => existingType.name === type.name)
+      this.graphQLTypes.find(existingType => existingType.name === type.name) ||
+      (!ignoreConnection && type.name.endsWith('Connection'))
     ) {
       const message = `Type ${type.name} could not be added to the auto schema because it collided with an existing type.`;
       if (throwError) {

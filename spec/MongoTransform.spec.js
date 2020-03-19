@@ -217,7 +217,10 @@ describe('parseObjectToMongoObjectForCreate', () => {
     const lng = 45;
     // Mongo stores polygon in WGS84 lng/lat
     const input = {
-      location: { type: 'Polygon', coordinates: [[[lat, lng], [lat, lng]]] },
+      location: {
+        type: 'Polygon',
+        coordinates: [[[lat, lng], [lat, lng]]],
+      },
     };
     const output = transform.mongoObjectToParseObject(null, input, {
       fields: { location: { type: 'Polygon' } },
@@ -479,6 +482,46 @@ describe('parseObjectToMongoObjectForCreate', () => {
     }).toThrow();
     done();
   });
+
+  it('ignores User authData field in DB so it can be synthesized in code', done => {
+    const input = {
+      _id: '123',
+      _auth_data_acme: { id: 'abc' },
+      authData: null,
+    };
+    const output = transform.mongoObjectToParseObject('_User', input, {
+      fields: {},
+    });
+    expect(output.authData.acme.id).toBe('abc');
+    done();
+  });
+
+  it('can set authData when not User class', done => {
+    const input = {
+      _id: '123',
+      authData: 'random',
+    };
+    const output = transform.mongoObjectToParseObject('TestObject', input, {
+      fields: {},
+    });
+    expect(output.authData).toBe('random');
+    done();
+  });
+});
+
+it('cannot have a custom field name beginning with underscore', done => {
+  const input = {
+    _id: '123',
+    _thisFieldNameIs: 'invalid',
+  };
+  try {
+    transform.mongoObjectToParseObject('TestObject', input, {
+      fields: {},
+    });
+  } catch (e) {
+    expect(e).toBeDefined();
+  }
+  done();
 });
 
 describe('transformUpdate', () => {
