@@ -650,6 +650,13 @@ export class MongoStorageAdapter implements StorageAdapter {
       {}
     );
 
+    // If we aren't requesting the `_id` field, we need to explicitly opt out
+    // of it. Doing so in parse-server is unusual, but it can allow us to
+    // optimize some queries with covering indexes.
+    if (keys && !mongoKeys._id) {
+      mongoKeys._id = 0;
+    }
+
     readPreference = this._parseReadPreference(readPreference);
     return this.createTextIndexesIfNeeded(className, query, schema)
       .then(() => this._adaptiveCollection(className))
@@ -682,7 +689,8 @@ export class MongoStorageAdapter implements StorageAdapter {
     schema: SchemaType,
     fieldNames: string[],
     indexName: ?string,
-    caseInsensitive: boolean = false
+    caseInsensitive: boolean = false,
+    indexType: any = 1
   ): Promise<any> {
     schema = convertParseSchemaToMongoSchema(schema);
     const indexCreationRequest = {};
@@ -690,7 +698,7 @@ export class MongoStorageAdapter implements StorageAdapter {
       transformKey(className, fieldName, schema)
     );
     mongoFieldNames.forEach(fieldName => {
-      indexCreationRequest[fieldName] = 1;
+      indexCreationRequest[fieldName] = indexType;
     });
 
     const defaultOptions: Object = { background: true, sparse: true };
@@ -841,6 +849,12 @@ export class MongoStorageAdapter implements StorageAdapter {
         stage.$project = this._parseAggregateProjectArgs(
           schema,
           stage.$project
+        );
+      }
+      if (stage.$geoNear) {
+        stage.$geoNear.query = this._parseAggregateArgs(
+          schema,
+          stage.$geoNear.query
         );
       }
       return stage;

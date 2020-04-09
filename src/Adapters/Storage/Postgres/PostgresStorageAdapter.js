@@ -6,8 +6,6 @@ import Parse from 'parse/node';
 import _ from 'lodash';
 import sql from './sql';
 
-const pgp = require('pg-promise');
-
 const PostgresRelationDoesNotExistError = '42P01';
 const PostgresDuplicateRelationError = '42P07';
 const PostgresDuplicateColumnError = '42701';
@@ -266,7 +264,6 @@ const buildWhereClause = ({
   let values = [];
   const sorts = [];
 
-  console.trace('QueryParams: ' + JSON.stringify(query));
   schema = toPostgresSchema(schema);
   for (const fieldName in query) {
     const isArrayField =
@@ -618,11 +615,11 @@ const buildWhereClause = ({
       const distance = fieldValue.$maxDistance;
       const distanceInKM = distance * 6371 * 1000;
       patterns.push(
-        `ST_distance_sphere($${index}:name::geometry, POINT($${index +
+        `ST_DistanceSphere($${index}:name::geometry, POINT($${index +
           1}, $${index + 2})::geometry) <= $${index + 3}`
       );
       sorts.push(
-        `ST_distance_sphere($${index}:name::geometry, POINT($${index +
+        `ST_DistanceSphere($${index}:name::geometry, POINT($${index +
           1}, $${index + 2})::geometry) ASC`
       );
       values.push(fieldName, point.longitude, point.latitude, distanceInKM);
@@ -670,7 +667,7 @@ const buildWhereClause = ({
       }
       const distanceInKM = distance * 6371 * 1000;
       patterns.push(
-        `ST_distance_sphere($${index}:name::geometry, POINT($${index +
+        `ST_DistanceSphere($${index}:name::geometry, POINT($${index +
           1}, $${index + 2})::geometry) <= $${index + 3}`
       );
       values.push(fieldName, point.longitude, point.latitude, distanceInKM);
@@ -740,7 +737,6 @@ const buildWhereClause = ({
     }
 
     if (fieldValue.$regex) {
-      console.trace('FieldValue is Regex');
       let regex = fieldValue.$regex;
       let operator = '~';
       const opts = fieldValue.$options;
@@ -754,15 +750,10 @@ const buildWhereClause = ({
       }
 
       const name = transformDotField(fieldName);
-
-      console.trace('RegexVorher: ' + JSON.stringify(regex));
       regex = processRegexPattern(regex);
-      console.trace('RegexNachher: ' + JSON.stringify(regex));
 
       patterns.push(`$${index}:raw ${operator} '$${index + 1}:raw'`);
       values.push(name, regex);
-
-      console.trace('VALUES: ' + JSON.stringify(values));
       index += 2;
     }
 
@@ -853,6 +844,15 @@ export class PostgresStorageAdapter implements StorageAdapter {
     this._client = client;
     this._pgp = pgp;
     this.canSortOnJoinTables = false;
+  }
+
+  //Note that analyze=true will run the query, executing INSERTS, DELETES, etc.
+  createExplainableQuery(query: string, analyze: boolean = false) {
+    if (analyze) {
+      return 'EXPLAIN (ANALYZE, FORMAT JSON) ' + query;
+    } else {
+      return 'EXPLAIN (FORMAT JSON) ' + query;
+    }
   }
 
   handleShutdown() {
@@ -1838,7 +1838,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
     className: string,
     schema: SchemaType,
     query: QueryType,
-    { skip, limit, sort, keys, caseInsensitive }: QueryOptions
+    { skip, limit, sort, keys, caseInsensitive, explain }: QueryOptions
   ) {
     debug('find', className, query, {
       skip,
@@ -1846,6 +1846,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
       sort,
       keys,
       caseInsensitive,
+      explain,
     });
     const hasLimit = limit !== undefined;
     const hasSkip = skip !== undefined;
@@ -1915,14 +1916,11 @@ export class PostgresStorageAdapter implements StorageAdapter {
       values = values.concat(keys);
     }
 
-    const qs = `SELECT ${columns} FROM $1:name ${wherePattern} ${sortPattern} ${limitPattern} ${skipPattern}`;
+    const originalQuery = `SELECT ${columns} FROM $1:name ${wherePattern} ${sortPattern} ${limitPattern} ${skipPattern}`;
+    const qs = explain
+      ? this.createExplainableQuery(originalQuery)
+      : originalQuery;
     debug(qs, values);
-    const test = pgp.as.format(
-      `SELECT ${columns} FROM $1:name ${wherePattern} ${sortPattern} ${limitPattern} ${skipPattern}`,
-      values
-    );
-
-    console.trace('SQL-Query: ' + test);
     return this._client
       .any(qs, values)
       .catch(error => {
@@ -1932,11 +1930,14 @@ export class PostgresStorageAdapter implements StorageAdapter {
         }
         return [];
       })
-      .then(results =>
-        results.map(object =>
+      .then(results => {
+        if (explain) {
+          return results;
+        }
+        return results.map(object =>
           this.postgresObjectToParseObject(className, object, schema)
-        )
-      );
+        );
+      });
   }
 
   // Converts from a postgres-format object to a REST-format object.
@@ -2193,8 +2194,15 @@ export class PostgresStorageAdapter implements StorageAdapter {
       );
   }
 
-  async aggregate(className: string, schema: any, pipeline: any) {
-    debug('aggregate', className, pipeline);
+  async aggregate(
+    className: string,
+    schema: any,
+    pipeline: any,
+    readPreference: ?string,
+    hint: ?mixed,
+    explain?: boolean
+  ) {
+    debug('aggregate', className, pipeline, readPreference, hint, explain);
     const values = [className];
     let index: number = 2;
     let columns: string[] = [];
@@ -2379,30 +2387,45 @@ export class PostgresStorageAdapter implements StorageAdapter {
       }
     }
 
-    const qs = `SELECT ${columns.join()} FROM $1:name ${wherePattern} ${sortPattern} ${limitPattern} ${skipPattern} ${groupPattern}`;
-    debug(qs, values);
-    return this._client
-      .map(qs, values, a =>
-        this.postgresObjectToParseObject(className, a, schema)
-      )
-      .then(results => {
-        results.forEach(result => {
-          if (!Object.prototype.hasOwnProperty.call(result, 'objectId')) {
-            result.objectId = null;
-          }
-          if (groupValues) {
-            result.objectId = {};
-            for (const key in groupValues) {
-              result.objectId[key] = result[key];
-              delete result[key];
-            }
-          }
-          if (countField) {
-            result[countField] = parseInt(result[countField], 10);
-          }
-        });
-        return results;
+    if (groupPattern) {
+      columns.forEach((e, i, a) => {
+        if (e && e.trim() === '*') {
+          a[i] = '';
+        }
       });
+    }
+
+    const originalQuery = `SELECT ${columns
+      .filter(Boolean)
+      .join()} FROM $1:name ${wherePattern} ${skipPattern} ${groupPattern} ${sortPattern} ${limitPattern}`;
+    const qs = explain
+      ? this.createExplainableQuery(originalQuery)
+      : originalQuery;
+    debug(qs, values);
+    return this._client.any(qs, values).then(a => {
+      if (explain) {
+        return a;
+      }
+      const results = a.map(object =>
+        this.postgresObjectToParseObject(className, object, schema)
+      );
+      results.forEach(result => {
+        if (!Object.prototype.hasOwnProperty.call(result, 'objectId')) {
+          result.objectId = null;
+        }
+        if (groupValues) {
+          result.objectId = {};
+          for (const key in groupValues) {
+            result.objectId[key] = result[key];
+            delete result[key];
+          }
+        }
+        if (countField) {
+          result[countField] = parseInt(result[countField], 10);
+        }
+      });
+      return results;
+    });
   }
 
   async performInitialization({ VolatileClassesSchemas }: any) {
@@ -2529,9 +2552,45 @@ export class PostgresStorageAdapter implements StorageAdapter {
     return result;
   }
 
-  // TODO: implement?
-  ensureIndex(): Promise<void> {
-    return Promise.resolve();
+  async ensureIndex(
+    className: string,
+    schema: SchemaType,
+    fieldNames: string[],
+    indexName: ?string,
+    caseInsensitive: boolean = false,
+    conn: ?any = null
+  ): Promise<any> {
+    conn = conn != null ? conn : this._client;
+    const defaultIndexName = `parse_default_${fieldNames.sort().join('_')}`;
+    const indexNameOptions: Object =
+      indexName != null ? { name: indexName } : { name: defaultIndexName };
+    const constraintPatterns = caseInsensitive
+      ? fieldNames.map(
+        (fieldName, index) => `lower($${index + 3}:name) varchar_pattern_ops`
+      )
+      : fieldNames.map((fieldName, index) => `$${index + 3}:name`);
+    const qs = `CREATE INDEX $1:name ON $2:name (${constraintPatterns.join()})`;
+    await conn
+      .none(qs, [indexNameOptions.name, className, ...fieldNames])
+      .catch(error => {
+        if (
+          error.code === PostgresDuplicateRelationError &&
+          error.message.includes(indexNameOptions.name)
+        ) {
+          // Index already exists. Ignore error.
+        } else if (
+          error.code === PostgresUniqueIndexViolationError &&
+          error.message.includes(indexNameOptions.name)
+        ) {
+          // Cast the error into the proper parse error
+          throw new Parse.Error(
+            Parse.Error.DUPLICATE_VALUE,
+            'A duplicate value for a field with unique values was provided'
+          );
+        } else {
+          throw error;
+        }
+      });
   }
 }
 
@@ -2595,16 +2654,13 @@ function removeWhiteSpace(regex) {
 
 function processRegexPattern(s) {
   if (s && s.startsWith('^')) {
-    console.trace('Starts with');
     // regex for startsWith
     return '^' + literalizeRegexPart(s.slice(1));
   } else if (s && s.endsWith('$')) {
     // regex for endsWith
-    console.trace('Ends with');
     return literalizeRegexPart(s.slice(0, s.length - 1)) + '$';
   }
 
-  console.trace('Hat Contains');
   // regex for contains
   return literalizeRegexPart(s);
 }
@@ -2650,10 +2706,8 @@ function createLiteralRegex(remaining) {
       const regex = RegExp('[0-9 ]|\\p{L}', 'u'); // Support all unicode letter chars
       if (c.match(regex) !== null) {
         // don't escape alphanumeric characters
-        console.log('Gefunden');
         return c;
       }
-      console.log('Escape');
       // escape everything else (single quotes with single quotes, everything else with a backslash)
       return c === `'` ? `''` : `\\${c}`;
     })
@@ -2661,16 +2715,13 @@ function createLiteralRegex(remaining) {
 }
 
 function literalizeRegexPart(s: string) {
-  console.trace('Parameter: ' + JSON.stringify(s));
   const matcher1 = /\\Q((?!\\E).*)\\E$/;
   const result1: any = s.match(matcher1);
   if (result1 && result1.length > 1 && result1.index > -1) {
     // process regex that has a beginning and an end specified for the literal text
     const prefix = s.substr(0, result1.index);
     const remaining = result1[1];
-    console.trace(
-      'Springt hier raus; Prefix: ' + prefix + ', Remaining: ' + remaining
-    );
+
     return literalizeRegexPart(prefix) + createLiteralRegex(remaining);
   }
 
@@ -2680,26 +2731,18 @@ function literalizeRegexPart(s: string) {
   if (result2 && result2.length > 1 && result2.index > -1) {
     const prefix = s.substr(0, result2.index);
     const remaining = result2[1];
-    console.trace(
-      'Oder Springt hier raus; Prefix: ' + prefix + ', Remaining: ' + remaining
-    );
+
     return literalizeRegexPart(prefix) + createLiteralRegex(remaining);
   }
 
   // remove all instances of \Q and \E from the remaining text & escape single quotes
-  console.trace('Oder Er Springt hier raus');
-
-  console.trace('QueryErgebnisForAnderung: ' + JSON.stringify(s));
-  const value = s
+  return s
     .replace(/([^\\])(\\E)/, '$1')
     .replace(/([^\\])(\\Q)/, '$1')
     .replace(/^\\E/, '')
     .replace(/^\\Q/, '')
     .replace(/([^'])'/, `$1''`)
     .replace(/^'([^'])/, `''$1`);
-
-  console.trace('QueryErgebnisNachAnderung: ' + JSON.stringify(value));
-  return value;
 }
 
 var GeoPointCoder = {

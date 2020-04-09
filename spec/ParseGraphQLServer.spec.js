@@ -17,6 +17,7 @@ const { SubscriptionClient } = require('subscriptions-transport-ws');
 const { WebSocketLink } = require('apollo-link-ws');
 const ApolloClient = require('apollo-client').default;
 const gql = require('graphql-tag');
+const { toGlobalId } = require('graphql-relay');
 const {
   GraphQLObjectType,
   GraphQLString,
@@ -8109,6 +8110,16 @@ describe('ParseGraphQLServer', () => {
 
           await parseGraphQLServer.parseGraphQLSchema.databaseController.schemaCache.clear();
 
+          const gqlUser = (await apolloClient.query({
+            query: gql`
+              query getUser($id: ID!) {
+                user(id: $id) {
+                  id
+                }
+              }
+            `,
+            variables: { id: user.id },
+          })).data.user;
           const {
             data: { createSomeClass },
           } = await apolloClient.mutate({
@@ -8142,7 +8153,7 @@ describe('ParseGraphQLServer', () => {
               fields: {
                 ACL: {
                   users: [
-                    { userId: user.id, read: true, write: true },
+                    { userId: gqlUser.id, read: true, write: true },
                     { userId: user2.id, read: true, write: false },
                   ],
                   roles: [
@@ -8159,13 +8170,13 @@ describe('ParseGraphQLServer', () => {
             __typename: 'ACL',
             users: [
               {
-                userId: user.id,
+                userId: toGlobalId('_User', user.id),
                 read: true,
                 write: true,
                 __typename: 'UserACL',
               },
               {
-                userId: user2.id,
+                userId: toGlobalId('_User', user2.id),
                 read: true,
                 write: false,
                 __typename: 'UserACL',

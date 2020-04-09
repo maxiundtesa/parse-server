@@ -69,9 +69,7 @@ describe('FilesController', () => {
         );
         expect(log1.level).toBe('error');
 
-        const log2 = logs.find(
-          x => x.message === 'Could not store file: yolo.txt.'
-        );
+        const log2 = logs.find(x => x.message === 'it failed with xyz');
         expect(log2.level).toBe('error');
         expect(log2.code).toBe(130);
 
