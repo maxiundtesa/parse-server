@@ -1020,6 +1020,16 @@ RestWrite.prototype.handleFollowup = function() {
   if (this.storage && this.storage['sendVerificationEmail']) {
     delete this.storage['sendVerificationEmail'];
     // Fire and forget!
+    // Name wird hinzugefuegt, wenn er fehlt
+    if (
+      this.className === '_User' &&
+      this.data &&
+      this.originalData &&
+      this.originalData.realName &&
+      !this.data.realName
+    ) {
+      this.data.realName = this.originalData.realName;
+    }
     this.config.userController.sendVerificationEmail(this.data);
     return this.handleFollowup.bind(this);
   }
