@@ -14,18 +14,12 @@ const transformTypes = async (
     classGraphQLUpdateType,
     config: { isCreateEnabled, isUpdateEnabled },
   } = parseGraphQLSchema.parseClassTypes[className];
-  const parseClass = parseGraphQLSchema.parseClasses.find(
-    clazz => clazz.className === className
-  );
+  const parseClass = parseGraphQLSchema.parseClasses.find(clazz => clazz.className === className);
   if (fields) {
     const classGraphQLCreateTypeFields =
-      isCreateEnabled && classGraphQLCreateType
-        ? classGraphQLCreateType.getFields()
-        : null;
+      isCreateEnabled && classGraphQLCreateType ? classGraphQLCreateType.getFields() : null;
     const classGraphQLUpdateTypeFields =
-      isUpdateEnabled && classGraphQLUpdateType
-        ? classGraphQLUpdateType.getFields()
-        : null;
+      isUpdateEnabled && classGraphQLUpdateType ? classGraphQLUpdateType.getFields() : null;
     const promises = Object.keys(fields).map(async field => {
       let inputTypeField;
       if (inputType === 'create' && classGraphQLCreateTypeFields) {
@@ -73,6 +67,9 @@ const transformTypes = async (
 
 const transformers = {
   file: async ({ file, upload }, { config }) => {
+    if (file === null && !upload) {
+      return null;
+    }
     if (upload) {
       const { fileInfo } = await handleUpload(upload, config);
       return { ...fileInfo, __type: 'File' };
@@ -119,13 +116,7 @@ const transformers = {
     }
     return parseACL;
   },
-  relation: async (
-    targetClass,
-    field,
-    value,
-    parseGraphQLSchema,
-    { config, auth, info }
-  ) => {
+  relation: async (targetClass, field, value, parseGraphQLSchema, { config, auth, info }) => {
     if (Object.keys(value).length === 0)
       throw new Parse.Error(
         Parse.Error.INVALID_POINTER,
@@ -139,22 +130,18 @@ const transformers = {
     let nestedObjectsToAdd = [];
 
     if (value.createAndAdd) {
-      nestedObjectsToAdd = (await Promise.all(
-        value.createAndAdd.map(async input => {
-          const parseFields = await transformTypes('create', input, {
-            className: targetClass,
-            parseGraphQLSchema,
-            req: { config, auth, info },
-          });
-          return objectsMutations.createObject(
-            targetClass,
-            parseFields,
-            config,
-            auth,
-            info
-          );
-        })
-      )).map(object => ({
+      nestedObjectsToAdd = (
+        await Promise.all(
+          value.createAndAdd.map(async input => {
+            const parseFields = await transformTypes('create', input, {
+              className: targetClass,
+              parseGraphQLSchema,
+              req: { config, auth, info },
+            });
+            return objectsMutations.createObject(targetClass, parseFields, config, auth, info);
+          })
+        )
+      ).map(object => ({
         __type: 'Pointer',
         className: targetClass,
         objectId: object.objectId,
@@ -198,13 +185,7 @@ const transformers = {
     }
     return op;
   },
-  pointer: async (
-    targetClass,
-    field,
-    value,
-    parseGraphQLSchema,
-    { config, auth, info }
-  ) => {
+  pointer: async (targetClass, field, value, parseGraphQLSchema, { config, auth, info }) => {
     if (Object.keys(value).length > 1 || Object.keys(value).length === 0)
       throw new Parse.Error(
         Parse.Error.INVALID_POINTER,

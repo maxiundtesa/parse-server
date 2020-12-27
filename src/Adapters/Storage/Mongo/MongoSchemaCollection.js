@@ -41,9 +41,7 @@ function mongoFieldToParseSchemaField(type) {
 
 const nonFieldSchemaKeys = ['_id', '_metadata', '_client_permissions'];
 function mongoSchemaFieldsToParseSchemaFields(schema) {
-  var fieldNames = Object.keys(schema).filter(
-    key => nonFieldSchemaKeys.indexOf(key) === -1
-  );
+  var fieldNames = Object.keys(schema).filter(key => nonFieldSchemaKeys.indexOf(key) === -1);
   var response = fieldNames.reduce((obj, fieldName) => {
     obj[fieldName] = mongoFieldToParseSchemaField(schema[fieldName]);
     if (
@@ -156,9 +154,7 @@ class MongoSchemaCollection {
   }
 
   _fetchAllSchemasFrom_SCHEMA() {
-    return this._collection
-      ._rawFind({})
-      .then(schemas => schemas.map(mongoSchemaToParseSchema));
+    return this._collection._rawFind({}).then(schemas => schemas.map(mongoSchemaToParseSchema));
   }
 
   _fetchOneSchemaFrom_SCHEMA(name: string) {
@@ -175,10 +171,7 @@ class MongoSchemaCollection {
 
   // Atomically find and delete an object based on query.
   findAndDeleteSchema(name: string) {
-    return this._collection._mongoCollection.findAndRemove(
-      _mongoSchemaQueryFromNameQuery(name),
-      []
-    );
+    return this._collection._mongoCollection.findOneAndDelete(_mongoSchemaQueryFromNameQuery(name));
   }
 
   insertSchema(schema: any) {
@@ -188,10 +181,7 @@ class MongoSchemaCollection {
       .catch(error => {
         if (error.code === 11000) {
           //Mongo's duplicate key error
-          throw new Parse.Error(
-            Parse.Error.DUPLICATE_VALUE,
-            'Class already exists.'
-          );
+          throw new Parse.Error(Parse.Error.DUPLICATE_VALUE, 'Class already exists.');
         } else {
           throw error;
         }
@@ -199,17 +189,11 @@ class MongoSchemaCollection {
   }
 
   updateSchema(name: string, update) {
-    return this._collection.updateOne(
-      _mongoSchemaQueryFromNameQuery(name),
-      update
-    );
+    return this._collection.updateOne(_mongoSchemaQueryFromNameQuery(name), update);
   }
 
   upsertSchema(name: string, query: string, update) {
-    return this._collection.upsertOne(
-      _mongoSchemaQueryFromNameQuery(name, query),
-      update
-    );
+    return this._collection.upsertOne(_mongoSchemaQueryFromNameQuery(name, query), update);
   }
 
   // Add a field to the schema. If database does not support the field
@@ -236,8 +220,7 @@ class MongoSchemaCollection {
             // Make sure there are not other geopoint fields
             if (
               Object.keys(schema.fields).some(
-                existingField =>
-                  schema.fields[existingField].type === 'GeoPoint'
+                existingField => schema.fields[existingField].type === 'GeoPoint'
               )
             ) {
               throw new Parse.Error(

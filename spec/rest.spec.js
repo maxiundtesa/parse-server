@@ -79,17 +79,11 @@ describe('rest create', () => {
 
     const err = 'objectId must not be empty, null or undefined';
 
-    expect(() =>
-      rest.create(config, auth.nobody(config), 'MyClass', objIdEmpty)
-    ).toThrowError(err);
+    expect(() => rest.create(config, auth.nobody(config), 'MyClass', objIdEmpty)).toThrowError(err);
 
-    expect(() =>
-      rest.create(config, auth.nobody(config), 'MyClass', objIdNull)
-    ).toThrowError(err);
+    expect(() => rest.create(config, auth.nobody(config), 'MyClass', objIdNull)).toThrowError(err);
 
-    expect(() =>
-      rest.create(config, auth.nobody(config), 'MyClass', objIdUndef)
-    ).toThrowError(err);
+    expect(() => rest.create(config, auth.nobody(config), 'MyClass', objIdUndef)).toThrowError(err);
   });
 
   it('should generate objectId when not set by client with allowCustomObjectId true', async () => {
@@ -179,7 +173,7 @@ describe('rest create', () => {
   it('handles object and subdocument', done => {
     const obj = { subdoc: { foo: 'bar', wu: 'tan' } };
 
-    Parse.Cloud.beforeSave('MyClass', function() {
+    Parse.Cloud.beforeSave('MyClass', function () {
       // this beforeSave trigger should do nothing but can mess with the object
     });
 
@@ -194,13 +188,7 @@ describe('rest create', () => {
         expect(mob.subdoc.wu).toBe('tan');
         expect(typeof mob.objectId).toEqual('string');
         const obj = { 'subdoc.wu': 'clan' };
-        return rest.update(
-          config,
-          auth.nobody(config),
-          'MyClass',
-          { objectId: mob.objectId },
-          obj
-        );
+        return rest.update(config, auth.nobody(config), 'MyClass', { objectId: mob.objectId }, obj);
       })
       .then(() => database.adapter.find('MyClass', { fields: {} }, {}, {}))
       .then(results => {
@@ -218,27 +206,19 @@ describe('rest create', () => {
     const customConfig = Object.assign({}, config, {
       allowClientClassCreation: false,
     });
-    rest
-      .create(
-        customConfig,
-        auth.nobody(customConfig),
-        'ClientClassCreation',
-        {}
-      )
-      .then(
-        () => {
-          fail('Should throw an error');
-          done();
-        },
-        err => {
-          expect(err.code).toEqual(Parse.Error.OPERATION_FORBIDDEN);
-          expect(err.message).toEqual(
-            'This user is not allowed to access ' +
-              'non-existent class: ClientClassCreation'
-          );
-          done();
-        }
-      );
+    rest.create(customConfig, auth.nobody(customConfig), 'ClientClassCreation', {}).then(
+      () => {
+        fail('Should throw an error');
+        done();
+      },
+      err => {
+        expect(err.code).toEqual(Parse.Error.OPERATION_FORBIDDEN);
+        expect(err.message).toEqual(
+          'This user is not allowed to access ' + 'non-existent class: ClientClassCreation'
+        );
+        done();
+      }
+    );
   });
 
   it('handles create on existent class when disabled client class creation', async () => {
@@ -246,20 +226,12 @@ describe('rest create', () => {
       allowClientClassCreation: false,
     });
     const schema = await config.database.loadSchema();
-    const actualSchema = await schema.addClassIfNotExists(
-      'ClientClassCreation',
-      {}
-    );
+    const actualSchema = await schema.addClassIfNotExists('ClientClassCreation', {});
     expect(actualSchema.className).toEqual('ClientClassCreation');
 
     await schema.reloadData({ clearCache: true });
     // Should not throw
-    await rest.create(
-      customConfig,
-      auth.nobody(customConfig),
-      'ClientClassCreation',
-      {}
-    );
+    await rest.create(customConfig, auth.nobody(customConfig), 'ClientClassCreation', {});
   });
 
   it('handles user signup', done => {
@@ -354,13 +326,7 @@ describe('rest create', () => {
         });
       })
       .then(sessionAuth => {
-        return rest.update(
-          config,
-          sessionAuth,
-          '_User',
-          { objectId },
-          updatedData
-        );
+        return rest.update(config, sessionAuth, '_User', { objectId }, updatedData);
       })
       .then(() => {
         return Parse.User.logOut().then(() => {
@@ -395,9 +361,7 @@ describe('rest create', () => {
       },
       err => {
         expect(err.code).toEqual(Parse.Error.UNSUPPORTED_SERVICE);
-        expect(err.message).toEqual(
-          'This authentication method is unsupported.'
-        );
+        expect(err.message).toEqual('This authentication method is unsupported.');
         NoAnnonConfig.authDataManager.setEnableAnonymousUsers(true);
         done();
       }
@@ -479,6 +443,45 @@ describe('rest create', () => {
           __type: 'Pointer',
           className: 'JustThePointer',
           objectId: 'qwerty1234',
+        });
+        done();
+      });
+  });
+
+  it('stores pointers to objectIds larger than 10 characters', done => {
+    const obj = {
+      foo: 'bar',
+      aPointer: {
+        __type: 'Pointer',
+        className: 'JustThePointer',
+        objectId: '49F62F92-9B56-46E7-A3D4-BBD14C52F666',
+      },
+    };
+    rest
+      .create(config, auth.nobody(config), 'APointerDarkly', obj)
+      .then(() =>
+        database.adapter.find(
+          'APointerDarkly',
+          {
+            fields: {
+              foo: { type: 'String' },
+              aPointer: { type: 'Pointer', targetClass: 'JustThePointer' },
+            },
+          },
+          {},
+          {}
+        )
+      )
+      .then(results => {
+        expect(results.length).toEqual(1);
+        const output = results[0];
+        expect(typeof output.foo).toEqual('string');
+        expect(typeof output._p_aPointer).toEqual('undefined');
+        expect(output._p_aPointer).toBeUndefined();
+        expect(output.aPointer).toEqual({
+          __type: 'Pointer',
+          className: 'JustThePointer',
+          objectId: '49F62F92-9B56-46E7-A3D4-BBD14C52F666',
         });
         done();
       });
@@ -789,14 +792,12 @@ describe('rest update', () => {
           createdAt: { __type: 'Date', iso: newCreatedAt }, // should be ignored
         };
 
-        return rest
-          .update(config, nobody, className, { objectId }, restObject)
-          .then(() => {
-            const restWhere = {
-              objectId: objectId,
-            };
-            return rest.find(config, nobody, className, restWhere, {});
-          });
+        return rest.update(config, nobody, className, { objectId }, restObject).then(() => {
+          const restWhere = {
+            objectId: objectId,
+          };
+          return rest.find(config, nobody, className, restWhere, {});
+        });
       })
       .then(res2 => {
         const updatedObject = res2.results[0];
@@ -861,9 +862,7 @@ describe('read-only masterKey', () => {
     })
       .then(done.fail)
       .catch(err => {
-        expect(err).toEqual(
-          new Error('masterKey and readOnlyMasterKey should be different')
-        );
+        expect(err).toEqual(new Error('masterKey and readOnlyMasterKey should be different'));
         done();
       });
   });
@@ -894,9 +893,7 @@ describe('read-only masterKey', () => {
       .then(done.fail)
       .catch(res => {
         expect(res.data.code).toBe(Parse.Error.OPERATION_FORBIDDEN);
-        expect(res.data.error).toBe(
-          "read-only masterKey isn't allowed to create a schema."
-        );
+        expect(res.data.error).toBe("read-only masterKey isn't allowed to create a schema.");
         done();
       });
   });
@@ -915,9 +912,7 @@ describe('read-only masterKey', () => {
       .then(done.fail)
       .catch(res => {
         expect(res.data.code).toBe(Parse.Error.OPERATION_FORBIDDEN);
-        expect(res.data.error).toBe(
-          "read-only masterKey isn't allowed to create a schema."
-        );
+        expect(res.data.error).toBe("read-only masterKey isn't allowed to create a schema.");
         done();
       });
   });
@@ -936,9 +931,7 @@ describe('read-only masterKey', () => {
       .then(done.fail)
       .catch(res => {
         expect(res.data.code).toBe(Parse.Error.OPERATION_FORBIDDEN);
-        expect(res.data.error).toBe(
-          "read-only masterKey isn't allowed to update a schema."
-        );
+        expect(res.data.error).toBe("read-only masterKey isn't allowed to update a schema.");
         done();
       });
   });
@@ -957,9 +950,7 @@ describe('read-only masterKey', () => {
       .then(done.fail)
       .catch(res => {
         expect(res.data.code).toBe(Parse.Error.OPERATION_FORBIDDEN);
-        expect(res.data.error).toBe(
-          "read-only masterKey isn't allowed to delete a schema."
-        );
+        expect(res.data.error).toBe("read-only masterKey isn't allowed to delete a schema.");
         done();
       });
   });
@@ -978,9 +969,7 @@ describe('read-only masterKey', () => {
       .then(done.fail)
       .catch(res => {
         expect(res.data.code).toBe(Parse.Error.OPERATION_FORBIDDEN);
-        expect(res.data.error).toBe(
-          "read-only masterKey isn't allowed to update the config."
-        );
+        expect(res.data.error).toBe("read-only masterKey isn't allowed to update the config.");
         done();
       });
   });

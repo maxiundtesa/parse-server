@@ -33,24 +33,14 @@ const addFileDataIfNeeded = async file => {
   return file;
 };
 
-const errorMessageFromError = e => {
-  if (typeof e === 'string') {
-    return e;
-  } else if (e && e.message) {
-    return e.message;
-  }
-  return undefined;
-};
-
 export class FilesRouter {
   expressRouter({ maxUploadSize = '20Mb' } = {}) {
     var router = express.Router();
     router.get('/files/:appId/:filename', this.getHandler);
+    router.get('/files/:appId/metadata/:filename', this.metadataHandler);
 
-    router.post('/files', function(req, res, next) {
-      next(
-        new Parse.Error(Parse.Error.INVALID_FILE_NAME, 'Filename not provided.')
-      );
+    router.post('/files', function (req, res, next) {
+      next(new Parse.Error(Parse.Error.INVALID_FILE_NAME, 'Filename not provided.'));
     });
 
     router.post(
@@ -80,13 +70,11 @@ export class FilesRouter {
     const filename = req.params.filename;
     const contentType = mime.getType(filename);
     if (isFileStreamable(req, filesController)) {
-      filesController
-        .handleFileStream(config, filename, req, res, contentType)
-        .catch(() => {
-          res.status(404);
-          res.set('Content-Type', 'text/plain');
-          res.end('File not found.');
-        });
+      filesController.handleFileStream(config, filename, req, res, contentType).catch(() => {
+        res.status(404);
+        res.set('Content-Type', 'text/plain');
+        res.end('File not found.');
+      });
     } else {
       filesController
         .getFileData(config, filename)
@@ -106,14 +94,33 @@ export class FilesRouter {
 
   async createHandler(req, res, next) {
     const config = req.config;
+    const user = req.auth.user;
+    const isMaster = req.auth.isMaster;
+    const isLinked = user && Parse.AnonymousUtils.isLinked(user);
+    if (!isMaster && !config.fileUpload.enableForAnonymousUser && isLinked) {
+      next(new Parse.Error(
+        Parse.Error.FILE_SAVE_ERROR,
+        'File upload by anonymous user is disabled.'
+      ));
+      return;
+    }
+    if (!isMaster && !config.fileUpload.enableForAuthenticatedUser && !isLinked && user) {
+      next(new Parse.Error(
+        Parse.Error.FILE_SAVE_ERROR,
+        'File upload by authenticated user is disabled.'
+      ));
+      return;
+    }
+    if (!isMaster && !config.fileUpload.enableForPublic && !user) {
+      next(new Parse.Error(Parse.Error.FILE_SAVE_ERROR, 'File upload by public is disabled.'));
+      return;
+    }
     const filesController = config.filesController;
     const { filename } = req.params;
     const contentType = req.get('Content-type');
 
     if (!req.body || !req.body.length) {
-      next(
-        new Parse.Error(Parse.Error.FILE_SAVE_ERROR, 'Invalid file upload.')
-      );
+      next(new Parse.Error(Parse.Error.FILE_SAVE_ERROR, 'Invalid file upload.'));
       return;
     }
 
@@ -191,10 +198,11 @@ export class FilesRouter {
       res.json(saveResult);
     } catch (e) {
       logger.error('Error creating a file: ', e);
-      const errorMessage =
-        errorMessageFromError(e) ||
-        `Could not store file: ${fileObject.file._name}.`;
-      next(new Parse.Error(Parse.Error.FILE_SAVE_ERROR, errorMessage));
+      const error = triggers.resolveError(e, {
+        code: Parse.Error.FILE_SAVE_ERROR,
+        message: `Could not store file: ${fileObject.file._name}.`,
+      });
+      next(error);
     }
   }
 
@@ -226,15 +234,29 @@ export class FilesRouter {
       res.end();
     } catch (e) {
       logger.error('Error deleting a file: ', e);
-      const errorMessage = errorMessageFromError(e) || `Could not delete file.`;
-      next(new Parse.Error(Parse.Error.FILE_DELETE_ERROR, errorMessage));
+      const error = triggers.resolveError(e, {
+        code: Parse.Error.FILE_DELETE_ERROR,
+        message: 'Could not delete file.',
+      });
+      next(error);
+    }
+  }
+
+  async metadataHandler(req, res) {
+    const config = Config.get(req.params.appId);
+    const { filesController } = config;
+    const { filename } = req.params;
+    try {
+      const data = await filesController.getMetadata(filename);
+      res.status(200);
+      res.json(data);
+    } catch (e) {
+      res.status(200);
+      res.json({});
     }
   }
 }
 
 function isFileStreamable(req, filesController) {
-  return (
-    req.get('Range') &&
-    typeof filesController.adapter.handleFileStream === 'function'
-  );
+  return req.get('Range') && typeof filesController.adapter.handleFileStream === 'function';
 }

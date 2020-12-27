@@ -67,11 +67,7 @@ class ParseServer {
 
     const allControllers = controllers.getControllers(options);
 
-    const {
-      loggerController,
-      databaseController,
-      hooksController,
-    } = allControllers;
+    const { loggerController, databaseController, hooksController } = allControllers;
     this.config = Config.put(Object.assign({}, options, allControllers));
 
     logging.setLogger(loggerController);
@@ -116,20 +112,18 @@ class ParseServer {
   handleShutdown() {
     const promises = [];
     const { adapter: databaseAdapter } = this.config.databaseController;
-    if (
-      databaseAdapter &&
-      typeof databaseAdapter.handleShutdown === 'function'
-    ) {
+    if (databaseAdapter && typeof databaseAdapter.handleShutdown === 'function') {
       promises.push(databaseAdapter.handleShutdown());
     }
     const { adapter: fileAdapter } = this.config.filesController;
     if (fileAdapter && typeof fileAdapter.handleShutdown === 'function') {
       promises.push(fileAdapter.handleShutdown());
     }
-    return (promises.length > 0
-      ? Promise.all(promises)
-      : Promise.resolve()
-    ).then(() => {
+    const { adapter: cacheAdapter } = this.config.cacheController;
+    if (cacheAdapter && typeof cacheAdapter.handleShutdown === 'function') {
+      promises.push(cacheAdapter.handleShutdown());
+    }
+    return (promises.length > 0 ? Promise.all(promises) : Promise.resolve()).then(() => {
       if (this.config.serverCloseComplete) {
         this.config.serverCloseComplete();
       }
@@ -154,17 +148,13 @@ class ParseServer {
       })
     );
 
-    api.use('/health', function(req, res) {
+    api.use('/health', function (req, res) {
       res.json({
         status: 'ok',
       });
     });
 
-    api.use(
-      '/',
-      bodyParser.urlencoded({ extended: false }),
-      new PublicAPIRouter().expressRouter()
-    );
+    api.use('/', bodyParser.urlencoded({ extended: false }), new PublicAPIRouter().expressRouter());
 
     api.use(bodyParser.json({ type: '*/*', limit: maxUploadSize }));
     api.use(middlewares.allowMethodOverride);
@@ -182,9 +172,7 @@ class ParseServer {
       process.on('uncaughtException', err => {
         if (err.code === 'EADDRINUSE') {
           // user-friendly message for this common error
-          process.stderr.write(
-            `Unable to listen on port ${err.port}. The port is already in use.`
-          );
+          process.stderr.write(`Unable to listen on port ${err.port}. The port is already in use.`);
           process.exit(0);
         } else {
           throw err;
@@ -192,17 +180,12 @@ class ParseServer {
       });
       // verify the server url after a 'mount' event is received
       /* istanbul ignore next */
-      api.on('mount', function() {
+      api.on('mount', function () {
         ParseServer.verifyServerUrl();
       });
     }
-    if (
-      process.env.PARSE_SERVER_ENABLE_EXPERIMENTAL_DIRECT_ACCESS === '1' ||
-      directAccess
-    ) {
-      Parse.CoreManager.setRESTController(
-        ParseServerRESTController(appId, appRouter)
-      );
+    if (process.env.PARSE_SERVER_ENABLE_EXPERIMENTAL_DIRECT_ACCESS === '1' || directAccess) {
+      Parse.CoreManager.setRESTController(ParseServerRESTController(appId, appRouter));
     }
     return api;
   }
@@ -263,10 +246,11 @@ class ParseServer {
     if (options.mountGraphQL === true || options.mountPlayground === true) {
       let graphQLCustomTypeDefs = undefined;
       if (typeof options.graphQLSchema === 'string') {
-        graphQLCustomTypeDefs = parse(
-          fs.readFileSync(options.graphQLSchema, 'utf8')
-        );
-      } else if (typeof options.graphQLSchema === 'object') {
+        graphQLCustomTypeDefs = parse(fs.readFileSync(options.graphQLSchema, 'utf8'));
+      } else if (
+        typeof options.graphQLSchema === 'object' ||
+        typeof options.graphQLSchema === 'function'
+      ) {
         graphQLCustomTypeDefs = options.graphQLSchema;
       }
 
@@ -291,7 +275,8 @@ class ParseServer {
     if (options.startLiveQueryServer || options.liveQueryServerOptions) {
       this.liveQueryServer = ParseServer.createLiveQueryServer(
         server,
-        options.liveQueryServerOptions
+        options.liveQueryServerOptions,
+        options
       );
     }
     /* istanbul ignore next */
@@ -317,16 +302,21 @@ class ParseServer {
    * Helper method to create a liveQuery server
    * @static
    * @param {Server} httpServer an optional http server to pass
-   * @param {LiveQueryServerOptions} config options fot he liveQueryServer
+   * @param {LiveQueryServerOptions} config options for the liveQueryServer
+   * @param {ParseServerOptions} options options for the ParseServer
    * @returns {ParseLiveQueryServer} the live query server instance
    */
-  static createLiveQueryServer(httpServer, config: LiveQueryServerOptions) {
+  static createLiveQueryServer(
+    httpServer,
+    config: LiveQueryServerOptions,
+    options: ParseServerOptions
+  ) {
     if (!httpServer || (config && config.port)) {
       var app = express();
       httpServer = require('http').createServer(app);
       httpServer.listen(config.port);
     }
-    return new ParseLiveQueryServer(httpServer, config);
+    return new ParseLiveQueryServer(httpServer, config, options);
   }
 
   static verifyServerUrl(callback) {
@@ -337,11 +327,7 @@ class ParseServer {
         .catch(response => response)
         .then(response => {
           const json = response.data || null;
-          if (
-            response.status !== 200 ||
-            !json ||
-            (json && json.status !== 'ok')
-          ) {
+          if (response.status !== 200 || !json || (json && json.status !== 'ok')) {
             /* eslint-disable no-console */
             console.warn(
               `\nWARNING, Unable to connect to '${Parse.serverURL}'.` +
@@ -398,10 +384,7 @@ function injectDefaults(options: ParseServerOptions) {
     /* eslint-enable no-console */
 
     const userSensitiveFields = Array.from(
-      new Set([
-        ...(defaults.userSensitiveFields || []),
-        ...(options.userSensitiveFields || []),
-      ])
+      new Set([...(defaults.userSensitiveFields || []), ...(options.userSensitiveFields || [])])
     );
 
     // If the options.protectedFields is unset,
@@ -409,17 +392,11 @@ function injectDefaults(options: ParseServerOptions) {
     // Here, protect against the case where protectedFields
     // is set, but doesn't have _User.
     if (!('_User' in options.protectedFields)) {
-      options.protectedFields = Object.assign(
-        { _User: [] },
-        options.protectedFields
-      );
+      options.protectedFields = Object.assign({ _User: [] }, options.protectedFields);
     }
 
     options.protectedFields['_User']['*'] = Array.from(
-      new Set([
-        ...(options.protectedFields['_User']['*'] || []),
-        ...userSensitiveFields,
-      ])
+      new Set([...(options.protectedFields['_User']['*'] || []), ...userSensitiveFields])
     );
   }
 
@@ -440,9 +417,7 @@ function injectDefaults(options: ParseServerOptions) {
   });
 
   options.masterKeyIps = Array.from(
-    new Set(
-      options.masterKeyIps.concat(defaults.masterKeyIps, options.masterKeyIps)
-    )
+    new Set(options.masterKeyIps.concat(defaults.masterKeyIps, options.masterKeyIps))
   );
 }
 
@@ -461,7 +436,7 @@ function configureListeners(parseServer) {
     });
   });
 
-  const destroyAliveConnections = function() {
+  const destroyAliveConnections = function () {
     for (const socketId in sockets) {
       try {
         sockets[socketId].destroy();
@@ -471,7 +446,7 @@ function configureListeners(parseServer) {
     }
   };
 
-  const handleShutdown = function() {
+  const handleShutdown = function () {
     process.stdout.write('Termination signal received. Shutting down.');
     destroyAliveConnections();
     server.close();

@@ -11,9 +11,8 @@ const views = path.resolve(__dirname, '../../views');
 
 export class PublicAPIRouter extends PromiseRouter {
   verifyEmail(req) {
-    const { username, token: rawToken, mail } = req.query;
-    const token =
-      rawToken && typeof rawToken !== 'string' ? rawToken.toString() : rawToken;
+    const { username, token: rawToken } = req.query;
+    const token = rawToken && typeof rawToken !== 'string' ? rawToken.toString() : rawToken;
 
     const appId = process.env.APP_ID;
     const config = Config.get(appId);
@@ -26,15 +25,14 @@ export class PublicAPIRouter extends PromiseRouter {
       return this.missingPublicServerURL();
     }
 
-    if (!token || !username || !mail) {
-      console.log(`Mailadresse: ${mail}`);
+    if (!token || !username) {
       return this.invalidLink(req);
     }
 
     const userController = config.userController;
     return userController.verifyEmail(username, token).then(
       () => {
-        const params = qs.stringify({ mail });
+        const params = qs.stringify({ username });
         return Promise.resolve({
           status: 302,
           location: `${config.verifyEmailSuccessURL}?${params}`,
@@ -82,7 +80,7 @@ export class PublicAPIRouter extends PromiseRouter {
     );
   }
 
-  changePassword() {
+  changePassword(req) {
     return new Promise((resolve, reject) => {
       const config = Config.get(process.env.APP_ID);
 
@@ -97,27 +95,20 @@ export class PublicAPIRouter extends PromiseRouter {
         });
       }
       // Should we keep the file in memory or leave like that?
-      fs.readFile(
-        path.resolve(views, 'choose_password'),
-        'utf-8',
-        (err, data) => {
-          if (err) {
-            return reject(err);
-          }
-          data = data.replace(
-            'PARSE_SERVER_URL',
-            `'${config.publicServerURL}'`
-          );
-          resolve({
-            text: data,
-          });
+      fs.readFile(path.resolve(views, 'choose_password'), 'utf-8', (err, data) => {
+        if (err) {
+          return reject(err);
         }
-      );
+        data = data.replace('PARSE_SERVER_URL', `'${config.publicServerURL}'`);
+        resolve({
+          text: data,
+        });
+      });
     });
   }
 
   requestResetPassword(req) {
-    const config = Config.get(process.env.APP_ID);
+    const config = req.config;
 
     if (!config) {
       this.invalidRequest();
@@ -127,12 +118,10 @@ export class PublicAPIRouter extends PromiseRouter {
       return this.missingPublicServerURL();
     }
 
-    const { username, token: rawToken, mail } = req.query;
-    const token =
-      rawToken && typeof rawToken !== 'string' ? rawToken.toString() : rawToken;
+    const { username, token: rawToken } = req.query;
+    const token = rawToken && typeof rawToken !== 'string' ? rawToken.toString() : rawToken;
 
-    if (!username || !token || !mail) {
-      console.log(`Mailadresse: ${mail}`);
+    if (!username || !token) {
       return this.invalidLink(req);
     }
 
@@ -140,8 +129,7 @@ export class PublicAPIRouter extends PromiseRouter {
       () => {
         const params = qs.stringify({
           token,
-          mail: mail,
-          id: config.applicationId,
+          id: process.env.APP_ID,
           username,
           app: config.appName,
         });
@@ -157,7 +145,7 @@ export class PublicAPIRouter extends PromiseRouter {
   }
 
   resetPassword(req) {
-    const config = Config.get(process.env.APP_ID);
+    const config = req.config;
 
     if (!config) {
       this.invalidRequest();
@@ -167,12 +155,10 @@ export class PublicAPIRouter extends PromiseRouter {
       return this.missingPublicServerURL();
     }
 
-    const { username, new_password, token: rawToken, mail } = req.body;
-    const token =
-      rawToken && typeof rawToken !== 'string' ? rawToken.toString() : rawToken;
+    const { username, new_password, token: rawToken } = req.body;
+    const token = rawToken && typeof rawToken !== 'string' ? rawToken.toString() : rawToken;
 
-    if ((!username || !token || !new_password || !mail) && req.xhr === false) {
-      console.log('PublicApiRouter.js L. 185');
+    if ((!username || !token || !new_password) && req.xhr === false) {
       return this.invalidLink(req);
     }
 
@@ -186,10 +172,6 @@ export class PublicAPIRouter extends PromiseRouter {
 
     if (!new_password) {
       throw new Parse.Error(Parse.Error.PASSWORD_MISSING, 'Missing password');
-    }
-
-    if (!mail) {
-      throw new Parse.Error(Parse.Error.EMAIL_MISSING, 'Missing Mail');
     }
 
     return config.userController
@@ -214,7 +196,6 @@ export class PublicAPIRouter extends PromiseRouter {
           id: config.applicationId,
           error: result.err,
           app: config.appName,
-          mail: mail,
         });
 
         if (req.xhr) {
@@ -229,9 +210,9 @@ export class PublicAPIRouter extends PromiseRouter {
           }
         }
 
-        const encodedUsername = encodeURIComponent(mail);
+        const encodedUsername = encodeURIComponent(username);
         const location = result.success
-          ? `${config.passwordResetSuccessURL}?mail=${encodedUsername}`
+          ? `${config.passwordResetSuccessURL}?username=${encodedUsername}`
           : `${config.choosePasswordURL}?${params}`;
 
         return Promise.resolve({

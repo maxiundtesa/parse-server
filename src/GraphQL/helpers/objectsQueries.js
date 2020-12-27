@@ -10,16 +10,20 @@ const needToGetAllKeys = (fields, keys, parseClasses) =>
     ? keys.split(',').some(keyName => {
         const key = keyName.split('.');
         if (fields[key[0]]) {
+          if (fields[key[0]].type === 'Relation') return false;
           if (fields[key[0]].type === 'Pointer') {
             const subClass = parseClasses.find(
-              ({ className: parseClassName }) =>
-                fields[key[0]].targetClass === parseClassName
+              ({ className: parseClassName }) => fields[key[0]].targetClass === parseClassName
             );
             if (subClass && subClass.fields[key[1]]) {
               // Current sub key is not custom
               return false;
             }
-          } else if (!key[1]) {
+          } else if (
+            !key[1] ||
+            fields[key[0]].type === 'Array' ||
+            fields[key[0]].type === 'Object'
+          ) {
             // current key is not custom
             return false;
           }
@@ -29,20 +33,6 @@ const needToGetAllKeys = (fields, keys, parseClasses) =>
       })
     : true;
 /* eslint-enable*/
-
-const transformOrder = order =>
-  order
-    .map(o => {
-      const direction = o.indexOf('_ASC') > 0 ? '_ASC' : '_DESC';
-      let field = o.replace(direction, '');
-      field = field === 'id' ? 'objectId' : field;
-      if (direction === '_ASC') {
-        return `${field}`;
-      } else {
-        return `-${field}`;
-      }
-    })
-    .join(',');
 
 const getObject = async (
   className,
@@ -60,9 +50,7 @@ const getObject = async (
   try {
     if (
       !needToGetAllKeys(
-        parseClasses.find(
-          ({ className: parseClassName }) => className === parseClassName
-        ).fields,
+        parseClasses.find(({ className: parseClassName }) => className === parseClassName).fields,
         keys,
         parseClasses
       )
@@ -88,7 +76,8 @@ const getObject = async (
     className,
     objectId,
     options,
-    info.clientSDK
+    info.clientSDK,
+    info.context
   );
 
   if (!response.results || response.results.length == 0) {
@@ -149,14 +138,9 @@ const findObjects = async (
     if (Object.keys(where).length > 0 && subqueryReadPreference) {
       preCountOptions.subqueryReadPreference = subqueryReadPreference;
     }
-    preCount = (await rest.find(
-      config,
-      auth,
-      className,
-      where,
-      preCountOptions,
-      info.clientSDK
-    )).count;
+    preCount = (
+      await rest.find(config, auth, className, where, preCountOptions, info.clientSDK, info.context)
+    ).count;
     if ((skip || 0) + limit < preCount) {
       skip = preCount - limit;
     }
@@ -164,11 +148,7 @@ const findObjects = async (
 
   const options = {};
 
-  if (
-    selectedFields.find(
-      field => field.startsWith('edges.') || field.startsWith('pageInfo.')
-    )
-  ) {
+  if (selectedFields.find(field => field.startsWith('edges.') || field.startsWith('pageInfo.'))) {
     if (limit || limit === 0) {
       options.limit = limit;
     } else {
@@ -176,7 +156,7 @@ const findObjects = async (
     }
     if (options.limit !== 0) {
       if (order) {
-        options.order = transformOrder(order);
+        options.order = order;
       }
       if (skip) {
         options.skip = skip;
@@ -187,9 +167,7 @@ const findObjects = async (
       }
       if (
         !needToGetAllKeys(
-          parseClasses.find(
-            ({ className: parseClassName }) => className === parseClassName
-          ).fields,
+          parseClasses.find(({ className: parseClassName }) => className === parseClassName).fields,
           keys,
           parseClasses
         )
@@ -234,7 +212,8 @@ const findObjects = async (
       className,
       where,
       options,
-      info.clientSDK
+      info.clientSDK,
+      info.context
     );
     results = findResult.results;
     count = findResult.count;
@@ -250,9 +229,7 @@ const findObjects = async (
 
     pageInfo = {
       hasPreviousPage:
-        ((preCount && preCount > 0) || (count && count > 0)) &&
-        skip !== undefined &&
-        skip > 0,
+        ((preCount && preCount > 0) || (count && count > 0)) && skip !== undefined && skip > 0,
       startCursor: offsetToCursor(skip || 0),
       endCursor: offsetToCursor((skip || 0) + (results.length || 1) - 1),
       hasNextPage: (preCount || count) > (skip || 0) + results.length,
@@ -266,14 +243,7 @@ const findObjects = async (
   };
 };
 
-const calculateSkipAndLimit = (
-  skipInput,
-  first,
-  after,
-  last,
-  before,
-  maxLimit
-) => {
+const calculateSkipAndLimit = (skipInput, first, after, last, before, maxLimit) => {
   let skip = undefined;
   let limit = undefined;
   let needToPreCount = false;
@@ -281,10 +251,7 @@ const calculateSkipAndLimit = (
   // Validates the skip input
   if (skipInput || skipInput === 0) {
     if (skipInput < 0) {
-      throw new Parse.Error(
-        Parse.Error.INVALID_QUERY,
-        'Skip should be a positive number'
-      );
+      throw new Parse.Error(Parse.Error.INVALID_QUERY, 'Skip should be a positive number');
     }
     skip = skipInput;
   }
@@ -293,10 +260,7 @@ const calculateSkipAndLimit = (
   if (after) {
     after = cursorToOffset(after);
     if ((!after && after !== 0) || after < 0) {
-      throw new Parse.Error(
-        Parse.Error.INVALID_QUERY,
-        'After is not a valid cursor'
-      );
+      throw new Parse.Error(Parse.Error.INVALID_QUERY, 'After is not a valid cursor');
     }
 
     // If skip and after are passed, a new skip is calculated by adding them
@@ -306,10 +270,7 @@ const calculateSkipAndLimit = (
   // Validates the first param
   if (first || first === 0) {
     if (first < 0) {
-      throw new Parse.Error(
-        Parse.Error.INVALID_QUERY,
-        'First should be a positive number'
-      );
+      throw new Parse.Error(Parse.Error.INVALID_QUERY, 'First should be a positive number');
     }
 
     // The first param is translated to the limit param of the Parse legacy API
@@ -321,10 +282,7 @@ const calculateSkipAndLimit = (
     // This method converts the cursor to the index of the object
     before = cursorToOffset(before);
     if ((!before && before !== 0) || before < 0) {
-      throw new Parse.Error(
-        Parse.Error.INVALID_QUERY,
-        'Before is not a valid cursor'
-      );
+      throw new Parse.Error(Parse.Error.INVALID_QUERY, 'Before is not a valid cursor');
     }
 
     if ((skip || 0) >= before) {
@@ -339,10 +297,7 @@ const calculateSkipAndLimit = (
   // Validates the last param
   if (last || last === 0) {
     if (last < 0) {
-      throw new Parse.Error(
-        Parse.Error.INVALID_QUERY,
-        'Last should be a positive number'
-      );
+      throw new Parse.Error(Parse.Error.INVALID_QUERY, 'Last should be a positive number');
     }
 
     if (last > maxLimit) {
